@@ -5,7 +5,7 @@ spend money** — with India / UPI as the primary rail.
 
 **Author:** Ashutosh Anand · BS-MS Y22, IIT Kanpur
 **Supervisor:** Prof. Vimal Kumar, IITK
-**Status:** pre-build. Research corpus + protocol design. Nothing shipped yet.
+**Status:** research corpus + a working simulation of the trust layer (`sim/`). No rail integration.
 **Last major revision:** 19 Aug 2026
 
 ---
@@ -58,9 +58,25 @@ UPI Autopay is fixed-payee with a mandatory 24h pre-debit notification. UPI Rese
 block *per merchant*. Both bind a payee at mandate creation — before a comparison agent has
 decided anything. See [`docs/research/assumptions-forward-2026-08.md`](docs/research/assumptions-forward-2026-08.md) A3.
 
+## The simulation
+
+`sim/` is a working environment for both claims. No rail, no bank, no partnership --
+every dependency is one already under my control.
+
+```bash
+python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+./.venv/bin/python -m sim.run
+```
+
+15 scenarios, 11 denied, 4 authorised, all matching their predicted outcome. Eleven
+adversarial (hostile merchants, a compromised agent, a tampered mandate) and four
+delegation (the multi-principal household UPI Circle cannot express). See
+[`sim/README.md`](sim/README.md).
+
 ## Repository map
 
 ```
+sim/         the simulation environment -- see sim/README.md
 docs/
 ├── thesis/     the research contribution
 │   ├── thesis-problem-definition.md
@@ -110,4 +126,5 @@ file is for.
 
 1. [`docs/pitch/UAP.md`](docs/pitch/UAP.md) — the whole argument in 12 slides. Slides 6 and 7 are the persuasive core.
 2. [`docs/research/assumptions-forward-2026-08.md`](docs/research/assumptions-forward-2026-08.md) — what this is betting on, and what would kill it.
-3. [`ROADMAP.md`](ROADMAP.md) — what happens next.
+3. [`sim/README.md`](sim/README.md) — the environment, and what building it surfaced.
+4. [`ROADMAP.md`](ROADMAP.md) — what happens next.

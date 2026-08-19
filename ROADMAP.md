@@ -13,7 +13,7 @@ substitute for progress on the other — that has been the recurring failure mod
 Built entirely in **simulation**. Needs no bank, no licence, no partnership, no permission.
 That is the point: every dependency here is one I already control.
 
-### A1 · The constraint language `← start here`
+### A1 · The constraint language  ✅ built — `sim/uap/intent.py`
 
 Nobody has specified an intent grammar rich enough for a real delegated purchase:
 
@@ -29,7 +29,7 @@ deterministic answer is the whole requirement, because **no LLM may sit in the a
 This is pure specification work. No rail, no partner, no capital. It is the piece everything
 else hangs off, and it is the fastest thing here to start.
 
-### A2 · The drift harness
+### A2 · The drift harness  ✅ built — `sim/uap/drift.py`, `sim/rail.py`
 
 1. Mock seller catalog — 3 grocery sellers, varying price and stock.
 2. **Intent Mandate**, signed, expressed in the A1 grammar.
@@ -42,7 +42,7 @@ else hangs off, and it is the fastest thing here to start.
 Plain signed JSON is sufficient to prove the idea. Real W3C Verifiable Credentials are a
 later-stage concern, not a prerequisite.
 
-### A3 · The adversarial suite — this is the thesis, not the demo
+### A3 · The adversarial suite  ✅ built (7 attack classes) — this is the thesis, not the demo
 
 **Centre adversarial drift, not accidental drift.**
 
@@ -119,6 +119,11 @@ Carried from the assumptions file. These are facts, not opinions — they get ch
 - [ ] **Assumption A2** — any RBI statement on authentication for agent-initiated payments.
       This is the existential one; it resolves earliest and determines everything downstream.
 - [ ] ONDC staging registry access.
+- [ ] **Time dimension in the simulation** — mandate expiry, and the revocation-latency
+      race against an in-flight order. Not modelled yet, and it is the first question
+      a bank will ask.
+- [ ] **Swap the stub agent for an LLM** — the injection scenarios get materially
+      more interesting when the agent can actually be talked into things.
 
 ---
 

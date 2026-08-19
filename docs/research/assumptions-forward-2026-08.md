@@ -104,6 +104,123 @@ never written down, so nothing was learned when reality diverged."
 
 ---
 
+## The simulated world (A7-A15)
+
+Added **2026-08-19** when `sim/` was built. A1-A6 are bets about how the world
+resolves. These are the *world the simulation runs in* -- the state of affairs
+assumed true so that delegated agent payment is possible at all. Each is stated so
+a reader can disagree with it specifically.
+
+The dividing line that matters: **A7-A13 remove obstacles, A14-A15 create them.**
+A simulation built only from obstacle-removing assumptions can produce exactly one
+result -- *it works* -- and teaches nothing. A14 and A15 are what make it research.
+
+### A7 - UAP admits non-human delegates
+
+UPI Circle is human-to-human: the secondary authenticates biometrically on a bound
+device, holds their own UPI app, and receives a `name@upicircle` handle. A fridge
+has no thumb. So "the appliance is a Circle secondary" is not a small extrapolation
+of Circle -- it is UAP. The simulation assumes an agent identity chained to a
+principal, with scope, expiry and revocation.
+
+**Consequence:** stop saying "delegated payments over UPI Circle". Say "a UAP-shaped
+delegation primitive, of which UPI Circle is the nearest existing ancestor". The
+difference is not cosmetic -- it is the difference between inheriting a primitive
+that cannot express the use case and specifying one that can.
+
+### A8 - Several principals may fund one agent
+
+`PRIMARY` that this is impossible today: a UPI Circle secondary may accept
+delegation from **exactly one** primary, and a primary may have at most five
+secondaries. Circle is one-to-many; a shared appliance is many-to-one. Under Circle
+the family fridge is necessarily one person's fridge.
+
+Implemented in `sim/uap/delegation.py`. Two findings fell out of implementing it,
+neither of which was visible before the code existed:
+
+1. **Funding resolution is an unforced policy choice with no good default.**
+   Narrowest-scope-first drains the teenager's Rs 500 dairy grant to buy the
+   household's milk before touching either parent's Rs 4,000. Unrestricted-first
+   makes the least careful member fund everything. A rail shipping multi-principal
+   delegation must pick one and defend it. Neither is obviously right.
+2. **One unrestricted grant is a hole in everyone else's scoping.** If Dad scopes
+   to flour/grain/dairy and Teen to dairy, but Mum grants unrestricted, the
+   household's effective policy is Mum's. Category scoping is only as strong as the
+   loosest grant in the set. Scenario `uncovered-category` demonstrates it.
+
+### A9 - Device identity is distinct from agent identity
+
+An appliance holds a device identity; the agent chains to both device and
+principals. A factory reset or resale revokes every delegation bound to that
+device, without touching the same principal's grants to agents on other devices.
+Scenario `device-reset`.
+
+### A10 - Quick commerce exposes official agent-facing MCP servers
+
+Catalogue, discovery, cart, checkout. `PRIMARY` that this does not exist today:
+what exists is unofficial browser automation (`hereisSwapnil/blinkit-mcp` --
+search, cart, checkout, MIT, browser-driven) and read-only Apify scrapers. No
+Indian quick-commerce player ships an agent-ordering API.
+
+### A11 - Merchant servers are adversarial by default `<- the load-bearing one`
+
+Not "may be compromised". **Structurally incentivised.** Three merchants each write
+text into the agent's context and all three compete for the same single order.
+Manipulating selection is the arrangement's own incentive, and every attack in
+`sim/market/merchant.py` can be executed from inside a perfectly legitimate server
+by choosing what to report.
+
+Attack classes implemented, all of which the mandate chain catches:
+
+| Attack | What the merchant does | Caught by |
+|---|---|---|
+| `unit_confusion` | 500g pack priced as if per-kg | normalised unit price |
+| `quote_drift` | quote 15% under the charge | quoted vs charged in the cart |
+| `false_stock` | hide the cheapest SKU per unit | quantity + total ceiling |
+| `injection` | instructions in product text | quantity + total ceiling |
+| `substitution` | ship maida against an atta order | canonical item key |
+| `arithmetic` | inflate line total, leave unit price innocent | recomputed unit price |
+| `oversupply` | deliver 2kg against 1kg | normalised quantity |
+
+### A12 - Intent is machine-checkable, not free text
+
+Implemented as `sim/uap/intent.py`. There is deliberately no way to express "prefer"
+or "roughly": a preference cannot be checked deterministically, and anything
+non-deterministic cannot gate a payment. Every field is a ceiling or an allow-list.
+
+One implementation finding worth recording: **unit-price resolution is itself a
+security property.** At paise-per-gram, Rs 54/kg and Rs 59/kg both round to 6
+paise/g and every offer in the catalogue ties -- a comparison that cannot separate
+real prices cannot detect a manipulated one. Pricing per display unit (kg/l/piece)
+fixes it. This is the kind of thing only building finds.
+
+### A13 - Settlement is against a cross-merchant reservation
+
+Funds blocked against the principal's account, captured against whichever merchant
+wins. `sim/uap/ledger.py`. This is A3 assumed to resolve favourably; if UAP ships
+still binding a payee at mandate creation, that file is the diff.
+
+### A14 - Disputes require the mandate chain as evidence
+
+A chargeback on an agent-initiated payment requires intent + cart + drift report.
+Absent all three the merchant wins by default, because nobody can show what was
+authorised. `Evidence.complete()` in `sim/uap/mandate.py`.
+
+### A15 - The agent may be compromised
+
+The simulated agent is deliberately naive: it trusts merchant claims, optimises on
+displayed unit price, and follows instructions embedded in listings. This is the
+design, not a defect. The claim under test is that safety comes from the mandate
+chain rather than the agent's judgement -- so the agent must be permitted bad
+judgement. An agent that defends itself proves nothing, because a compromised agent
+will not defend itself.
+
+Scenarios `injection` and `injection-defended` are the same attack against a naive
+and a hardened agent. Both end correctly: the naive agent is stopped by the rail,
+not by itself.
+
+---
+
 ## What is being claimed as novel
 
 Two things, neither currently in `UAP.md`:
