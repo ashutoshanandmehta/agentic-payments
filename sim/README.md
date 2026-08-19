@@ -18,6 +18,19 @@ python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 ./.venv/bin/python -m sim.run price-drift  # just one
 ```
 
+Or use the web interface, which is easier for changing one number at a time:
+
+```bash
+./.venv/bin/python -m sim.web        # then open http://localhost:8000
+```
+
+It runs on Python's built-in HTTP server. Nothing is installed and nothing leaves your
+machine. 18 presets to start from, and every field is editable.
+
+**To see the main finding:** load *"Rs 600 cart, internally consistent"* and press
+Check. It is approved. Now change *Most per payment* from 800 to 150 and press Check
+again. Same cart, refused.
+
 **22 scenarios, 16 refused, 6 approved, all matching what they predicted.**
 
 ## The idea in one page

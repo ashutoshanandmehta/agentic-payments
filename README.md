@@ -53,7 +53,8 @@ predicted.
 
 ```bash
 python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
-./.venv/bin/python -m sim.run
+./.venv/bin/python -m sim.run          # all 22 scenarios in the terminal
+./.venv/bin/python -m sim.web          # web interface at http://localhost:8000
 ```
 
 The most interesting result is about a question I had not settled: **who should sign
