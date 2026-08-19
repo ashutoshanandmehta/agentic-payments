@@ -138,6 +138,11 @@ including three load-bearing ones. That file is the standard, not an embarrassme
 
 ## Still to verify
 
+- **P3P prior art — highest priority.** Pine Labs' P3P (11 Jun 2026) runs agentic
+  payments on UPI ReservePay with an identity layer called Grantex. Its public docs do
+  not describe binding a payment to an agreed order, but the docs stop at the quickstart.
+  Read the SDK or email `pgintegration@pinelabs.com`. If P3P already does this, the
+  contribution needs rethinking. See `docs/protocols.html`.
 - Read **NPCI OC 228** section by section. NPCI's site blocks automated fetching.
 - Check whether **Juspay** has published an AP2-to-UPI binding. If they have, part of
   the novelty is gone.

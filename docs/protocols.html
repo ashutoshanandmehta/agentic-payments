@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three Ways to Pay Over HTTP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap">
+
+<style>
+:root{
+  --ground:#f1f4f6;
+  --paper:#fbfcfd;
+  --ink:#111a21;
+  --ink-soft:#556069;
+  --ink-faint:#8a949c;
+  --rule:#d7dee3;
+  --rule-soft:#e6ebee;
+  --wire:#0f6f8c;
+  --wire-wash:#e0eef3;
+  --yes:#2c7a4b;
+  --no:#a83a2c;
+  --gap:#9a5b12;
+  --gap-wash:#f7edde;
+  --req:#3d5a9c;
+  --res:#6b4a94;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0f1418;
+    --paper:#161d23;
+    --ink:#e2e9ee;
+    --ink-soft:#9aa6b0;
+    --ink-faint:#6c7880;
+    --rule:#28323a;
+    --rule-soft:#1f272d;
+    --wire:#4fb6d4;
+    --wire-wash:#11272f;
+    --yes:#5cbb84;
+    --no:#e07a6a;
+    --gap:#d9a24f;
+    --gap-wash:#2a2113;
+    --req:#7e9ada;
+    --res:#a98cd4;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0f1418;
+  --paper:#161d23;
+  --ink:#e2e9ee;
+  --ink-soft:#9aa6b0;
+  --ink-faint:#6c7880;
+  --rule:#28323a;
+  --rule-soft:#1f272d;
+  --wire:#4fb6d4;
+  --wire-wash:#11272f;
+  --yes:#5cbb84;
+  --no:#e07a6a;
+  --gap:#d9a24f;
+  --gap-wash:#2a2113;
+  --req:#7e9ada;
+  --res:#a98cd4;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:"Source Sans 3",system-ui,sans-serif;
+  font-size:16.5px;line-height:1.6;
+}
+.page{max-width:62rem;margin:0 auto;padding:3.5rem 1.5rem 6rem}
+code,.mono,.wire,h1,h2,h3,.eyebrow,.pill,th{font-family:"JetBrains Mono",ui-monospace,monospace}
+
+.eyebrow{font-size:.68rem;text-transform:uppercase;letter-spacing:.16em;font-weight:500;color:var(--ink-faint);margin:0}
+h1{font-size:clamp(1.7rem,3.8vw,2.35rem);font-weight:700;letter-spacing:-.03em;line-height:1.14;margin:.7rem 0 0;text-wrap:balance}
+.deck{font-size:1.1rem;color:var(--ink-soft);max-width:40rem;margin:1rem 0 0;text-wrap:pretty}
+h2{font-size:1.05rem;font-weight:700;letter-spacing:-.01em;margin:0 0 .3rem}
+h3{font-size:.83rem;font-weight:500;letter-spacing:.03em;color:var(--ink-soft);margin:1.4rem 0 .5rem;text-transform:uppercase}
+p{margin:0 0 .8rem;max-width:42rem}
+p:last-child{margin-bottom:0}
+a{color:var(--wire)}
+hr.sep{border:0;border-top:1px solid var(--rule);margin:3rem 0}
+
+.proto{background:var(--paper);border:1px solid var(--rule);border-radius:7px;padding:1.5rem 1.6rem;margin-bottom:1.6rem}
+.proto-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:.7rem;margin-bottom:.2rem}
+.proto-head h2{font-size:1.5rem;letter-spacing:-.02em}
+.pill{font-size:.64rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:.2rem .55rem;border-radius:3px;background:var(--wire-wash);color:var(--wire);white-space:nowrap}
+.meta{font-size:.82rem;color:var(--ink-faint);margin:.15rem 0 1rem;font-family:"JetBrains Mono",monospace}
+
+.wire{
+  background:var(--ground);border:1px solid var(--rule);border-radius:5px;
+  padding:.9rem 1rem;font-size:.78rem;line-height:1.85;overflow-x:auto;margin:.9rem 0 0;
+  white-space:pre;
+}
+.wire .n{color:var(--ink-faint);user-select:none}
+.wire .rq{color:var(--req);font-weight:700}
+.wire .rs{color:var(--res);font-weight:700}
+.wire .hd{color:var(--wire)}
+.wire .cm{color:var(--ink-faint);font-style:normal}
+
+.note{font-size:.9rem;color:var(--ink-soft);margin-top:.9rem}
+.note strong{color:var(--ink)}
+
+.gap-box{border-left:3px solid var(--gap);background:var(--gap-wash);padding:.9rem 1.1rem;border-radius:0 5px 5px 0;margin-top:1.1rem}
+.gap-box p{margin:0;max-width:40rem;font-size:.93rem}
+.gap-box .lbl{font-family:"JetBrains Mono",monospace;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gap);display:block;margin-bottom:.3rem;font-weight:700}
+
+.tablewrap{overflow-x:auto;margin-top:1.2rem}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th{text-align:left;font-size:.66rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-faint);font-weight:500;padding:0 1rem .5rem 0;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:.6rem 1rem .6rem 0;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+td:first-child{font-family:"JetBrains Mono",monospace;font-weight:500;white-space:nowrap}
+.y{color:var(--yes);font-weight:600}
+.n{color:var(--no);font-weight:600}
+.q{color:var(--gap);font-weight:600}
+
+.verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:1rem;margin-top:1.2rem}
+.vc{background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:1.1rem 1.2rem;border-top:3px solid var(--rule)}
+.vc.use{border-top-color:var(--yes)}
+.vc.no{border-top-color:var(--no)}
+.vc.maybe{border-top-color:var(--gap)}
+.vc h2{font-size:1.05rem;margin-bottom:.1rem}
+.vc .ans{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin:.25rem 0 .6rem}
+.vc.use .ans{color:var(--yes)}
+.vc.no .ans{color:var(--no)}
+.vc.maybe .ans{color:var(--gap)}
+.vc p{font-size:.89rem;color:var(--ink-soft);margin:0}
+
+.conf{font-family:"JetBrains Mono",monospace;font-size:.63rem;letter-spacing:.07em;padding:.1rem .4rem;border-radius:3px;border:1px solid var(--rule);color:var(--ink-faint);white-space:nowrap}
+
+.foot{margin-top:3rem;padding-top:1.2rem;border-top:1px solid var(--rule);font-size:.82rem;color:var(--ink-faint)}
+.foot ul{margin:.5rem 0 0;padding-left:1.1rem}
+.foot li{margin-bottom:.25rem}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <p class="eyebrow">Protocol survey &middot; 20 August 2026</p>
+  <h1>Three Ways to Pay Over HTTP</h1>
+  <p class="deck">P3P, x402 and MPP all revive the same dormant status code to let software
+  pay for things. Here is what each one actually does on the wire — and the one question
+  none of them answers.</p>
+
+  <hr class="sep">
+
+  <p><strong>They are more alike than the branding suggests.</strong> All three are
+  challenge–response over HTTP 402: ask for something, get told the price, pay, ask again
+  with proof. What separates them is what settles the money and who governs the spec.</p>
+
+  <!-- ============ P3P ============ -->
+  <section class="proto">
+    <div class="proto-head">
+      <h2>P3P</h2>
+      <span class="pill">Pine Labs</span>
+      <span class="pill">UPI</span>
+      <span class="pill">live in production</span>
+    </div>
+    <p class="meta">Launched 11 June 2026 &middot; India &middot; settles on UPI ReservePay (Single Block Multiple Debit) or One Time Mandate</p>
+
+    <p>The only one of the three that moves rupees. It stacks three things: UPI's own
+    mandate rails underneath, an identity and delegation layer called <strong>Grantex</strong>
+    in the middle, and an HTTP 402 interface on top.</p>
+
+    <h3>Setup — happens once, with a human</h3>
+    <div class="wire"><span class="cm"># the merchant creates a mandate; the customer approves it by</span>
+<span class="cm"># scanning in their UPI app. this is the only human authentication.</span>
+<span class="rq">createMandate()</span>  <span class="hd">→</span>  authorizationId
+</div>
+
+    <h3>Every payment after that — no human</h3>
+    <div class="wire"><span class="n">1</span>  <span class="rq">GET</span> /api/gold-buy
+<span class="n">2</span>  <span class="rs">402 Payment Required</span>
+   <span class="hd">WWW-Authenticate:</span> Payment &lt;challenge&gt;
+<span class="n">3</span>  <span class="cm">client SDK decodes the challenge, builds a payment token</span>
+<span class="n">4</span>  <span class="rq">GET</span> /api/gold-buy
+   <span class="hd">P3P-Credential:</span> &lt;payment token&gt;
+   <span class="hd">X-Grantex-Token:</span> &lt;authorization grant&gt;
+<span class="n">5</span>  <span class="cm">server calls decidePayment(), captures against the mandate</span>
+<span class="n">6</span>  <span class="rs">200 OK</span>
+   <span class="hd">Payment-Receipt:</span> &lt;receipt&gt;
+</div>
+
+    <p class="note"><strong>What Grantex enforces:</strong> agent identity, pre-approved
+    spend limits, and an audit trail. Pine Labs' framing is "no guardrails, no payment."
+    The customer can revoke the mandate at any time. Payment tokens are scoped to a
+    specific resource, amount and expiry, so they cannot be replayed or redirected.</p>
+
+    <p class="note"><strong>Who is live:</strong> Gullak, the digital-gold platform — an
+    agent buys when gold hits a target price. Vijay Sales is running a proof of concept.</p>
+  </section>
+
+  <!-- ============ MPP ============ -->
+  <section class="proto">
+    <div class="proto-head">
+      <h2>MPP</h2>
+      <span class="pill">Stripe + Tempo</span>
+      <span class="pill">IETF draft</span>
+      <span class="pill">rail-agnostic</span>
+    </div>
+    <p class="meta">Launched 18 March 2026 &middot; Machine Payments Protocol &middot; settles on stablecoins, cards, or Bitcoin Lightning</p>
+
+    <p>The most carefully engineered of the three, and the only one on a standards track.
+    It is formally an HTTP authentication scheme — proposed to the IETF as
+    <code>draft-httpauth-payment-00</code> — which means it slots in beside Basic and Bearer
+    rather than inventing a parallel mechanism.</p>
+
+    <div class="wire"><span class="n">1</span>  <span class="rq">GET</span> /v1/forecast
+<span class="n">2</span>  <span class="rs">402 Payment Required</span>
+   <span class="hd">WWW-Authenticate:</span> Payment &lt;challenge params&gt;
+<span class="n">3</span>  <span class="cm">client pays by whichever method it holds</span>
+<span class="n">4</span>  <span class="rq">GET</span> /v1/forecast
+   <span class="hd">Authorization:</span> Payment &lt;credential&gt;
+   <span class="cm">credential echoes the challenge + method-specific proof</span>
+   <span class="cm">optional `source` field names the payer, in DID format</span>
+<span class="n">5</span>  <span class="rs">200 OK</span>
+   <span class="hd">Payment-Receipt:</span> base64url({status, method, ts, ref})
+</div>
+
+    <p class="note"><strong>The design decision that matters:</strong> the core scheme knows
+    nothing about how any payment method works. Methods are defined as separate IETF specs.
+    Cards, stablecoins on Tempo, Lightning — and anyone can define another one.</p>
+
+    <p class="note">It also ships streaming payment sessions, so an agent making a thousand
+    calls does not pay a thousand times. That is a direct answer to x402's cost problem.</p>
+  </section>
+
+  <!-- ============ x402 ============ -->
+  <section class="proto">
+    <div class="proto-head">
+      <h2>x402</h2>
+      <span class="pill">Coinbase &rarr; Linux Foundation</span>
+      <span class="pill">stablecoins only</span>
+    </div>
+    <p class="meta">Released May 2025 &middot; governance moved to the x402 Foundation under the Linux Foundation, 2 April 2026 &middot; settles USDC on Base</p>
+
+    <p>The oldest and the most widely deployed, with 22 launch members including Visa,
+    Mastercard, Stripe, Google and AWS. It introduces a third party the other two do not
+    have: a <strong>facilitator</strong>, which verifies the payment and pushes it on-chain
+    so the agent never touches a blockchain transaction directly.</p>
+
+    <div class="wire"><span class="n">1</span>  <span class="rq">GET</span> /api/search
+<span class="n">2</span>  <span class="rs">402 Payment Required</span>
+   <span class="hd">PAYMENT-REQUIRED:</span> {price, asset, payTo, network, scheme}
+<span class="n">3</span>  <span class="cm">client signs an EIP-3009 transferWithAuthorization —</span>
+   <span class="cm">a gasless authorization, not a transaction. the payee address</span>
+   <span class="cm">is inside the signature, so it cannot be swapped later.</span>
+<span class="n">4</span>  <span class="rq">GET</span> /api/search
+   <span class="hd">X-PAYMENT:</span> &lt;signed payload&gt;
+<span class="n">5</span>  <span class="cm">server → facilitator /verify   (amount, payee, sig, nonce, expiry)</span>
+<span class="n">6</span>  <span class="cm">server → facilitator /settle   → submitted on-chain, awaits confirm</span>
+<span class="n">7</span>  <span class="rs">200 OK</span>
+   <span class="hd">X-PAYMENT-RESPONSE:</span> &lt;settlement ref&gt;
+</div>
+
+    <p class="note"><strong>Read the adoption numbers carefully.</strong> Roughly 167 million
+    settled transactions, but only about <strong>$28,000 in real daily commerce volume</strong>,
+    with around half the activity gamified rather than genuine trade. Early volume was
+    inflated by memecoin farming. <span class="conf">SECONDARY</span></p>
+
+    <p class="note"><strong>Known weaknesses:</strong> the facilitator is centralised — most
+    verification runs through Coinbase's, and few deployments implement the local fallback.
+    Researchers have documented replay, front-running and grant-before-settle attacks across
+    the SDKs, plus a signature-verification bypass disclosed in March 2026.</p>
+  </section>
+
+  <hr class="sep">
+
+  <h3>Side by side</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr>
+        <th></th><th>P3P</th><th>MPP</th><th>x402</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>Settles in</td><td>Rupees, on UPI</td><td>Cards, stablecoins, Lightning</td><td>USDC on Base</td></tr>
+        <tr><td>Governance</td><td>Pine Labs, a company</td><td>IETF draft</td><td>Linux Foundation</td></tr>
+        <tr><td>Auth header</td><td><code>P3P-Credential</code></td><td><code>Authorization: Payment</code></td><td><code>X-PAYMENT</code></td></tr>
+        <tr><td>Agent identity</td><td class="y">yes — Grantex</td><td class="q">optional DID</td><td class="n">none</td></tr>
+        <tr><td>Spend limits</td><td class="y">yes — UPI mandate</td><td class="n">not in scope</td><td class="n">not in scope</td></tr>
+        <tr><td>Reversible</td><td class="y">yes</td><td class="q">depends on method</td><td class="n">no — on-chain</td></tr>
+        <tr><td>Works in India</td><td class="y">yes</td><td class="q">via cards</td><td class="n">tax and TDS make it unusable for retail</td></tr>
+        <tr><td>Binds to what the user agreed to buy</td><td class="q">not documented</td><td class="n">no</td><td class="n">no</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="gap-box">
+    <span class="lbl">The shared gap</span>
+    <p>All three bind a payment to a <strong>resource and a price</strong> — this URL costs
+    this much. None of them binds it to <strong>what the user agreed to buy</strong>. A
+    scoped, signed, unreplayable token for ₹600 is still a token for ₹600, even when the
+    basket the human approved came to ₹118. Every limit holds and the user is still
+    overcharged.</p>
+  </div>
+
+  <hr class="sep">
+
+  <h3>So — can you use them?</h3>
+
+  <div class="verdicts">
+    <div class="vc maybe">
+      <h2>P3P</h2>
+      <p class="ans">Yes, and read it closely</p>
+      <p>It is the closest thing to your thesis that exists: Indian, on UPI, on ReservePay,
+      shipping. Treat it as the system you are positioned against, not a competitor to
+      ignore. Using it needs Pine Labs onboarding.</p>
+    </div>
+    <div class="vc maybe">
+      <h2>MPP</h2>
+      <p class="ans">Yes, as a carrier</p>
+      <p>Because payment methods are separate IETF specs, "UPI" could be defined as one.
+      That is a cleaner route to a UPI binding than inventing a protocol, and the IETF
+      path gives it standing an internal design does not have.</p>
+    </div>
+    <div class="vc no">
+      <h2>x402</h2>
+      <p class="ans">No, except as a contrast</p>
+      <p>Crypto-only settlement, irreversible, and 30% tax plus 1% TDS per transfer makes
+      it unusable for Indian retail. Its value to you is as the clearest example of payment
+      authorisation carrying no record of intent.</p>
+    </div>
+  </div>
+
+  <div class="gap-box" style="border-left-color:var(--wire);background:var(--wire-wash)">
+    <span class="lbl" style="color:var(--wire)">What this means for the thesis</span>
+    <p>Your order gate is <strong>orthogonal to all three</strong>. It does not replace a
+    payment protocol; it sits above one and answers a question none of them asks. That is a
+    stronger position than competing with them — and it now holds against a live Indian
+    system rather than a hypothetical one.</p>
+  </div>
+
+  <div class="foot">
+    <p><strong>Verify before citing.</strong> Two things on this page are not solid:</p>
+    <ul>
+      <li>The claim that P3P has no order binding is <span class="conf">UNVERIFIED</span>.
+      Pine Labs' public docs stop at the quickstart and do not describe one — but absence
+      from public docs is not absence from the protocol. Check the TypeScript or Python
+      SDK, or email <code>pgintegration@pinelabs.com</code>. <strong>If P3P already binds
+      payments to an agreed order, that is your prior art and the contribution needs
+      rethinking.</strong></li>
+      <li>x402's volume figures are <span class="conf">SECONDARY</span>, from press
+      reporting rather than on-chain analysis you have run.</li>
+    </ul>
+    <p style="margin-top:.8rem">Also worth knowing: Pine Labs acquired Setu in 2022. The
+    company behind P3P is the same one behind the UPI API layer you were considering as a
+    way to get a sponsor bank without a bank relationship.</p>
+  </div>
+
+</div>
+</body>
+</html>

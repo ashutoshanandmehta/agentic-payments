@@ -251,3 +251,43 @@ Two things, neither currently in `UAP.md`:
 - [ ] Check whether Juspay has published anything on an AP2 UPI extension (prior-art risk to claim 1).
 - [ ] Track A2: any RBI statement on authentication for agent-initiated payments.
 - [ ] ONDC staging registry access (form + Slack request).
+
+---
+
+## Prior-art alert: P3P (added 2026-08-20)
+
+**Pine Labs Payments Protocol**, launched 11 June 2026, is the closest existing system to
+this thesis and it was not in the corpus before today.
+
+- Built on **UPI ReservePay** (Single Block Multiple Debit) and One Time Mandate --
+  the exact rail this work targets. `SECONDARY`
+- Uses **HTTP 402** challenge-response, headers `P3P-Credential` and `X-Grantex-Token`.
+- **Grantex** is its identity and delegation layer: verifies agent identity, enforces
+  pre-approved spend limits, keeps an audit trail. Pine Labs' phrase is "no guardrails,
+  no payment."
+- Live in production: Gullak (digital gold, agent buys at a target price). Vijay Sales
+  in proof of concept.
+- Pine Labs acquired Setu in 2022, so this is the same company behind the UPI API layer
+  previously considered as a route around a sponsor-bank relationship.
+
+**What this changes.** A1 and A7 are now partly resolved in reality rather than assumed:
+a delegation primitive admitting non-human payers exists on UPI today, without waiting
+for NPCI's UAP.
+
+**The open question, and it is the important one.** Pine Labs' public docs describe
+payment tokens as scoped to "a specific resource, amount and expiry". They do **not**
+describe any binding between the payment and an order or cart the user agreed to. If
+that absence is real, the order gate remains the contribution. If P3P already binds
+payments to an agreed order, **the contribution needs rethinking.**
+
+Status: `UNVERIFIED`. The public docs stop at the quickstart; absence from public docs
+is not absence from the protocol.
+
+**How to settle it:** read the P3P TypeScript or Python SDK, or email
+`pgintegration@pinelabs.com`. This is now the highest-priority verification item in the
+whole project -- higher than OC 228, higher than the Juspay check.
+
+Also relevant, from the same reporting: RBI's Digital Payments E-Mandate Framework 2026
+requires Additional Factor of Authentication to *set up* a mandate, and permits recurring
+debits up to **Rs 15,000** without AFA once it is set. That figure bears directly on C4
+and should be verified against the framework text. `SECONDARY`
