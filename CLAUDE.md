@@ -4,10 +4,52 @@
 
 I'm doing my MS at IIT Kanpur. My supervisor is Prof. Vimal Kumar.
 
-My research is about trust for AI agents that spend money. The main question:
-**when an AI agent buys something for you, how do you prove it bought the right thing?**
-
 I want a thesis and a published paper. I am not building a company.
+
+## What my research is about
+
+**Delegated payments.** Not agentic commerce.
+
+My work starts at the moment an AI agent tries to pay. The cart is already full.
+Something else chose the products and picked the shop. My question begins one step
+later:
+
+> **Is this agent allowed to make this payment, and can I prove it afterwards?**
+
+The payment goes through UPI, India's payment system.
+
+### The gap I am working on
+
+UPI makes you name the shop when you create a payment authority. UPI Autopay is
+locked to one payee. UPI Reserve Pay blocks money for one specific merchant.
+
+But an agent doesn't know which shop it's paying until the cart is finished. So the
+authority has to be created before anyone knows what it is authorising.
+
+Existing UPI cannot express that. This is the centre of my thesis.
+
+### What sits at the payment boundary
+
+Three things:
+
+1. **The payment authority** — signed by the human, in advance. Who may spend, how
+   much, where, until when.
+2. **The cart** — what is being paid for, to whom, how much.
+3. **The payment request** — the agent asking to execute.
+
+Two checks:
+
+- Does the payment request still match the cart? (nothing changed in between)
+- Does the cart fit inside the authority? (the agent stayed in bounds)
+
+### Out of scope — please don't drift back into these
+
+- Product search and discovery
+- Comparing prices across shops
+- Choosing which shop to buy from
+- Anything that happens before the cart is finished
+
+If a problem lives before the cart, it is agentic commerce and it is not mine.
 
 ## Talk to me simply
 
@@ -19,8 +61,8 @@ dense answers.
 - **One idea per paragraph.**
 - **Explain every new term the first time you use it.** If you write "fail-closed",
   say what it means in the same sentence.
-- **Use real examples with real numbers.** "The agent bought 10kg instead of 1kg"
-  is better than "quantity drift".
+- **Use real examples with real numbers.** "The agent paid Rs 5,400 when it was
+  allowed Rs 540" is better than "amount drift".
 - **Don't use a table unless you are comparing two or more things.** Sentences are
   usually clearer.
 - **If something is long, tell me what to read first.**
@@ -86,17 +128,25 @@ instead of getting real access. Use public datasets and open source.
 If something genuinely needs money or permission, say so plainly. Don't invent a
 free path when there isn't one.
 
-## What we're working on
+## The code
 
-The research artifact is `sim/` — a simulation of delegated agent payments. It runs
-with no bank, no real payment system, and no company partnership.
+The research artifact is `sim/` — a simulation of delegated payments. It runs with
+no bank, no real payment system, and no company partnership.
 
-The two claims I'm trying to defend:
+It was written before I narrowed the scope, so parts of it are now out of scope:
+anything about searching for products or comparing prices needs to be removed or
+reworked. The delegation parts (who is allowed to pay, whose money, revocation) are
+the parts that matter.
 
-1. Google's AP2 protocol defines signed records of what a user *asked for* and what
-   an agent *bought*, but nobody has connected it to UPI, India's payment system.
-2. The difference between those two records is measurable. That difference is what I
-   call decision drift.
+## Open question I haven't decided
+
+**Who signs the cart?**
+
+If the agent signs it, the agent can lie about what's in it. If the shop signs it,
+the shop can lie about the price. If both sign it, neither can lie alone, but that
+needs the shop to actively take part, which is a much bigger assumption.
+
+This decides what my system can actually prove. Everything else follows from it.
 
 ## Writing style
 
