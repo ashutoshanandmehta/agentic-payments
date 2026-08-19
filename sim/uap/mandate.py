@@ -1,24 +1,32 @@
 """
-Signed mandates.
+Signed records.
 
-Three artifacts, following AP2's shape:
+Four things get signed at the payment boundary:
 
-    IntentMandate   what the human authorised          signed by the principal
-    CartMandate     what the agent actually selected   signed by the agent
-    PaymentMandate  what the rail was asked to move    signed by the rail
+    authority    what the human allowed, in advance      signed by the human
+    cart         what is being bought, and from whom     signed by -- see below
+    request      the agent asking to pay                 signed by the agent
+    settlement   the rail agreeing to move money         signed by the rail
 
-The delta between the first two is decision drift. That is the whole point:
-drift is only measurable because both ends are signed by *different* keys and
-neither party can rewrite the other's half after the fact.
+**Who signs the cart is the open question of this thesis**, so it is a setting here
+rather than a decision. `CartSigner` lets a scenario try each answer and see what the
+system can still prove:
 
-Signing is Ed25519. It is not HMAC on purpose -- a shared secret would let the
-agent forge the principal's intent, which destroys the property being claimed.
+    AGENT     the agent can lie about what is in the cart
+    MERCHANT  the shop can lie about the price
+    BOTH      neither can lie alone, but the shop has to take part
+
+Signing uses Ed25519, a public-key signature scheme. Each party holds a private key
+nobody else has, so a signature proves who produced a record. This is not a shared
+password: if the human and the agent shared one, the agent could forge the human's
+authority and the whole argument collapses.
 """
 
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from enum import Enum
 from hashlib import sha256
 from typing import Any
 
@@ -28,15 +36,18 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,
 )
 
-from .intent import Intent, Money
+from .authority import Money, PaymentAuthority
+from .cart import Cart, PaymentRequest
 
 
-# --------------------------------------------------------------------------
-# Keys
-# --------------------------------------------------------------------------
+class CartSigner(str, Enum):
+    AGENT = "agent"
+    MERCHANT = "merchant"
+    BOTH = "both"
+
 
 class Keypair:
-    """An Ed25519 identity. Every actor in the simulation holds one."""
+    """One party's cryptographic identity."""
 
     def __init__(self, label: str, private: Ed25519PrivateKey | None = None) -> None:
         self.label = label
@@ -59,8 +70,10 @@ class Keypair:
 
 def canonical(payload: dict[str, Any]) -> bytes:
     """
-    Deterministic serialisation. Two structurally identical payloads must produce
-    byte-identical output, or signatures are meaningless.
+    Turn a payload into bytes the same way every time.
+
+    Without this, the same record could serialise two different ways and a valid
+    signature would fail to verify.
     """
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
 
@@ -69,134 +82,109 @@ def digest(payload: dict[str, Any]) -> str:
     return sha256(canonical(payload)).hexdigest()[:16]
 
 
-# --------------------------------------------------------------------------
-# Base
-# --------------------------------------------------------------------------
-
 @dataclass
-class SignedMandate:
-    """A payload plus a signature over its canonical form."""
+class SignedRecord:
+    """A payload plus one or more signatures over it."""
 
     kind: str
     payload: dict[str, Any]
-    signer: str
-    signature: bytes = b""
+    signatures: dict[str, bytes] = field(default_factory=dict)
 
-    def sign_with(self, key: Keypair) -> "SignedMandate":
-        self.signer = key.label
-        self.signature = key.sign(canonical(self.payload))
+    def sign_with(self, *keys: Keypair) -> "SignedRecord":
+        blob = canonical(self.payload)
+        for k in keys:
+            self.signatures[k.label] = k.sign(blob)
         return self
 
-    def verify_with(self, key: Keypair) -> bool:
-        return bool(self.signature) and key.verify(canonical(self.payload), self.signature)
+    def verify_by(self, key: Keypair) -> bool:
+        sig = self.signatures.get(key.label)
+        return bool(sig) and key.verify(canonical(self.payload), sig)
+
+    def signed_by(self) -> list[str]:
+        return sorted(self.signatures)
 
     @property
     def id(self) -> str:
         return digest(self.payload)
 
-    def tamper(self, **changes: Any) -> "SignedMandate":
+    def tamper(self, **changes: Any) -> "SignedRecord":
         """
-        Mutate the payload *without* re-signing.
+        Change the payload without re-signing.
 
-        Only used by adversarial scenarios. The signature must then fail to verify --
-        if a test ever passes after calling this, the binding is broken.
+        Only adversarial scenarios call this. Afterwards the signature must fail to
+        verify -- if a test ever passes after a tamper, the binding is broken.
         """
         p = dict(self.payload)
         p.update(changes)
-        return SignedMandate(kind=self.kind, payload=p, signer=self.signer,
-                             signature=self.signature)
+        return SignedRecord(kind=self.kind, payload=p, signatures=dict(self.signatures))
 
 
 # --------------------------------------------------------------------------
-# The three mandates
+# The four records
 # --------------------------------------------------------------------------
 
-def intent_mandate(intent: Intent, principal: Keypair, agent_id: str,
-                   nonce: str) -> SignedMandate:
-    """Signed by the human. This is the authority; everything else is derived."""
+def authority_record(authority: PaymentAuthority, principal: Keypair,
+                     agent_id: str, nonce: str = "1") -> SignedRecord:
     payload = {
-        "type": "IntentMandate",
+        "type": "PaymentAuthority",
         "principal": principal.label,
         "agent": agent_id,
         "nonce": nonce,
-        "constraints": intent.to_dict(),
+        "terms": authority.to_dict(),
     }
-    return SignedMandate("IntentMandate", payload, principal.label).sign_with(principal)
+    return SignedRecord("PaymentAuthority", payload).sign_with(principal)
 
 
-@dataclass
-class CartLine:
-    merchant: str
-    sku: str
-    title: str
-    quantity_amount: str
-    quantity_unit: str
-    unit_price_paise: int
-    line_total_paise: int
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "merchant": self.merchant,
-            "sku": self.sku,
-            "title": self.title,
-            "quantity": {"amount": self.quantity_amount, "unit": self.quantity_unit},
-            "unit_price_paise": self.unit_price_paise,
-            "line_total_paise": self.line_total_paise,
-        }
+def cart_record(cart: Cart, signer: CartSigner,
+                agent: Keypair, merchant: Keypair) -> SignedRecord:
+    payload = {"type": "Cart", **cart.to_dict()}
+    rec = SignedRecord("Cart", payload)
+    if signer is CartSigner.AGENT:
+        return rec.sign_with(agent)
+    if signer is CartSigner.MERCHANT:
+        return rec.sign_with(merchant)
+    return rec.sign_with(agent, merchant)
 
 
-def cart_mandate(lines: list[CartLine], agent: Keypair, intent_ref: str,
-                 quoted_total: Money, charged_total: Money) -> SignedMandate:
-    """
-    Signed by the agent. Records what was actually selected.
-
-    `quoted_total` and `charged_total` are kept separately on purpose: the gap
-    between them is the quote-drift attack, and collapsing them into one field
-    would make that attack unrepresentable.
-    """
+def request_record(request: PaymentRequest, authority_ref: str,
+                   agent: Keypair) -> SignedRecord:
     payload = {
-        "type": "CartMandate",
-        "agent": agent.label,
-        "intent_ref": intent_ref,
-        "lines": [ln.to_dict() for ln in lines],
-        "quoted_total_paise": quoted_total.paise,
-        "charged_total_paise": charged_total.paise,
+        "type": "PaymentRequest",
+        "authority_ref": authority_ref,
+        **request.to_dict(),
     }
-    return SignedMandate("CartMandate", payload, agent.label).sign_with(agent)
+    return SignedRecord("PaymentRequest", payload).sign_with(agent)
 
 
-def payment_mandate(cart_ref: str, intent_ref: str, amount: Money,
-                    funding_principal: str, rail: Keypair) -> SignedMandate:
-    """Signed by the rail once, and only once, both prior mandates verify."""
+def settlement_record(request_ref: str, cart_ref: str, authority_ref: str,
+                      amount: Money, funding_principal: str,
+                      rail: Keypair) -> SignedRecord:
     payload = {
-        "type": "PaymentMandate",
-        "intent_ref": intent_ref,
+        "type": "Settlement",
+        "authority_ref": authority_ref,
         "cart_ref": cart_ref,
+        "request_ref": request_ref,
         "amount_paise": amount.paise,
         "funding_principal": funding_principal,
     }
-    return SignedMandate("PaymentMandate", payload, rail.label).sign_with(rail)
+    return SignedRecord("Settlement", payload).sign_with(rail)
 
-
-# --------------------------------------------------------------------------
-# Evidence bundle
-# --------------------------------------------------------------------------
 
 @dataclass
 class Evidence:
     """
     What survives to a dispute.
 
-    Assumption A14: a chargeback on an agent-initiated payment requires the intent,
-    the cart, and the drift report. Without all three the merchant wins by default,
-    because nobody can show what was authorised.
+    NPCI's dispute system (UDIR) has reason codes for failed, unauthorised and
+    fraudulent payments. It has no code for "the agent misunderstood". This bundle is
+    the proposal for what such a code would have to carry.
     """
 
-    intent: SignedMandate
-    cart: SignedMandate | None = None
-    payment: SignedMandate | None = None
-    drift: Any = None
-    notes: list[str] = field(default_factory=list)
+    authority: SignedRecord
+    cart: SignedRecord | None = None
+    request: SignedRecord | None = None
+    settlement: SignedRecord | None = None
+    result: Any = None
 
     def complete(self) -> bool:
-        return all([self.intent, self.cart, self.payment, self.drift])
+        return all([self.authority, self.cart, self.request, self.settlement, self.result])

@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .intent import Money
+from .authority import Money
 from .mandate import Keypair
 
 

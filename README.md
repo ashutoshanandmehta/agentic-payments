@@ -1,130 +1,108 @@
-# Agentic Payments — Trust Infrastructure for Delegated Spend
+# Delegated payments for AI agents
 
-Research, product and thesis work on **identity, authorisation and audit for AI agents that
-spend money** — with India / UPI as the primary rail.
+MS research. IIT Kanpur. Supervisor: Prof. Vimal Kumar.
 
-**Author:** Ashutosh Anand · BS-MS Y22, IIT Kanpur
-**Supervisor:** Prof. Vimal Kumar, IITK
-**Status:** research corpus + a working simulation of the trust layer (`sim/`). No rail integration.
-**Last major revision:** 19 Aug 2026
+**The question:** when an AI agent pays for something, is it allowed to, and can you
+prove it afterwards?
 
----
+## Scope
 
-## The one-line problem
+My work starts at the moment the agent tries to pay. The cart is already full, and
+something else chose the products and picked the shop.
 
-> Every money system ever built assumes the transactor is a human.
+Product search, price comparison and shop selection are agentic commerce. They are out
+of scope.
 
-When an AI agent spends, five questions have no answer: which agent is this, whose is it, what
-was it allowed to spend, is it behaving normally, and — when it goes wrong — what's the proof.
-The first three must be answered *before* the payment, because a limit is enforced at
-authorisation, not in hindsight.
+The payment goes through UPI, India's payment system.
 
-The industry name for this is **KYA — Know Your Agent**.
+## The gap
 
-## What I am doing
+UPI makes you name the shop when you create a payment authority. UPI Autopay is locked
+to one payee. UPI Reserve Pay blocks money for one specific shop.
 
-Two tracks, deliberately split. They share primitives; they do not share a timeline.
+But an agent does not know which shop it is paying until the cart is finished.
 
-| | **Thesis / standards track** | **Company track** |
-|---|---|---|
-| Horizon | The future rail (UAP, AP2) | The present rail (cards, existing mandates) |
-| Mode | Simulation, protocol design, publication | Design partners, pricing discovery |
-| Bet | Consumer delegated payments arrive | Businesses already run agents that spend |
-| Success | Publishable contribution; a seat in the UAP consultation | 2 paid design partners |
+You can work around it by pre-blocking at every shop the agent might use. Three shops
+means Rs 30,000 of the customer's money locked up, and you have to list the shops in
+advance. So the honest version of the gap is:
 
-The split exists because [`docs/pitch/UAP.md`](docs/pitch/UAP.md) slide 7 declined the consumer
-bet explicitly — *"a bet on two futures and we're not taking it"* — while its own kicker notes
-*"the same primitives become the consumer UAP layer when the rail opens."* Both are true. The
-error would be funding the company off the future bet, or starving the thesis of the future work.
+> UPI has no single payment authority that can be spent across an **open** set of
+> shops. You can approximate it by naming the shops in advance and paying the capital
+> cost, but you cannot express "spend up to Rs 1,000 at whichever grocery shop turns
+> out to be cheapest."
 
-## The two novel claims
+## The mechanism
 
-Neither is in the pitch deck yet. Both are the thesis track's contribution.
+Describing the gap is not a contribution. `arXiv:2604.15367` already published the
+observation that instruction origin goes unverified after a mandate is created. Only a
+mechanism counts.
 
-1. **The AP2↔UPI binding is unwritten.** Google's AP2 (Sept 2025, 60+ partners) defines
-   Intent / Cart / Payment Mandates as signed W3C Verifiable Credentials and names UPI as a
-   target rail with defined extension points — but it is card/pull-first and ships no UPI
-   extension. `SECONDARY` · prior-art check pending on Juspay, an AP2 launch partner.
+The mechanism: four signed records at the payment boundary, and two arithmetic checks
+between them.
 
-2. **The delta between a signed Intent Mandate and a signed Cart Mandate is decision drift,
-   and it is cryptographically measurable.** The payments industry frames agent safety as spend
-   caps — *did it stay under the limit*. Drift is the harder question — *did it buy the thing
-   you meant*.
+The records are the authority, the cart, the request, and the settlement. The checks
+are: does the request still match the cart, and does the cart fit inside the authority.
 
-### The rail-level gap that motivates both
-
-UPI today has **no primitive for a budget delegated to an agent and spendable across merchants.**
-UPI Autopay is fixed-payee with a mandatory 24h pre-debit notification. UPI Reserve Pay is one
-block *per merchant*. Both bind a payee at mandate creation — before a comparison agent has
-decided anything. See [`docs/research/assumptions-forward-2026-08.md`](docs/research/assumptions-forward-2026-08.md) A3.
+Both checks are arithmetic. No language model sits in the approval path, because a bank
+cannot refuse a payment on a probability.
 
 ## The simulation
 
-`sim/` is a working environment for both claims. No rail, no bank, no partnership --
-every dependency is one already under my control.
+`sim/` implements it. 22 scenarios, 16 refused, 6 approved, all matching what they
+predicted.
 
 ```bash
 python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 ./.venv/bin/python -m sim.run
 ```
 
-15 scenarios, 11 denied, 4 authorised, all matching their predicted outcome. Eleven
-adversarial (hostile merchants, a compromised agent, a tampered mandate) and four
-delegation (the multi-principal household UPI Circle cannot express). See
-[`sim/README.md`](sim/README.md).
+The most interesting result is about a question I had not settled: **who should sign
+the cart?**
 
-## Repository map
+It matters less than expected. A cart claiming Rs 600, internally consistent, against a
+human who only agreed to Rs 118, is approved whether the agent signs it, the shop signs
+it, or both do. A signature proves who wrote a record, not that the record is true.
+
+What stops it is a tight limit in the authority. **The protection comes from the limit
+the human set, not from who signed the cart.**
+
+## Files
 
 ```
-sim/         the simulation environment -- see sim/README.md
-docs/
-├── thesis/     the research contribution
-│   ├── thesis-problem-definition.md
-│   └── why-agent-identity.md
-├── research/   the evidence base — and its corrections
-│   ├── agentic-commerce-india-research-report.md    market + regulatory landscape
-│   ├── agentic-payments-fact-base-2026-08.md        verified present facts
-│   ├── corpus-corrections-2026-08.md                past claims that were wrong
-│   └── assumptions-forward-2026-08.md               forward bets + falsifiers
-├── product/    what gets built and sold
-│   ├── warrant-interlock-product-document.md
-│   ├── agentic-commerce-india-startup-strategy.md
-│   └── agentic-payments-product-research-and-decks.md
-└── pitch/      how it is argued
-    ├── UAP.md                                       the 12-slide deck + appendices
-    ├── mentor-pitch.md · mentor-pitch-v2-*.md
-    └── objection-we-already-scope-agents.md         the hard objection, rehearsed
+docs/thesis/
+  problem-statement.md          the problem, scoped to the payment boundary
+  thesis-problem-definition.md  earlier version, predates the narrowing
+
+docs/research/
+  corpus-corrections-2026-08.md             claims that turned out wrong. read first.
+  agentic-payments-fact-base-2026-08.md     verified facts with sources
+  assumptions-forward-2026-08.md            what I assume, and what would disprove it
+  agentic-commerce-india-research-report.md background, mostly out of scope now
+
+sim/                            the simulation. see sim/README.md
 ```
 
-## Evidence discipline
+## How facts are marked
 
-Load-bearing claims carry a confidence marker. This is not decoration — it is the standard the
-corpus is held to.
+- `PRIMARY` - checked against the actual source
+- `SECONDARY` - someone reliable reported it, not verified directly
+- `UNVERIFIED` - believed, not checked. Do not build on it.
+- `CONTESTED` - sources disagree, or it was checked and failed
 
-| Marker | Means |
-|---|---|
-| `PRIMARY` | Verified against the source document or a direct test |
-| `SECONDARY` | Reported by a credible third party, not verified at source |
-| `UNVERIFIED` | Believed, not checked — do not build on it |
-| `CONTESTED` | Sources disagree, or the claim was checked and failed |
+`corpus-corrections-2026-08.md` records claims that were wrong, including three that
+were load-bearing. That file is the standard, not an embarrassment.
 
-Two files enforce it in both directions. `corpus-corrections-2026-08.md` audits claims already
-made — on 7 Aug 2026 it killed three load-bearing facts behind the original Reserve Pay wedge.
-`assumptions-forward-2026-08.md` does the same for claims about a future that hasn't arrived:
-each assumption gets a falsifier and a "what survives if false" line.
+## Still to verify
 
-**A finding that kills a good argument still gets written down.** That's what the corrections
-file is for.
+- Read **NPCI OC 228** section by section. Two claims depend on it, and NPCI's site
+  blocks automated fetching.
+- Check whether **Juspay** has published an AP2-to-UPI binding. They are an AP2 launch
+  partner, Indian, and work on UPI. If they have, part of the novelty is gone.
+- Find any RBI or NPCI statement on whether agent payments fall inside the e-mandate
+  exemption. This decides whether agent payments on UPI are already legal.
 
-## Not in this repo
+## Where to start
 
-- `shopping-agent/` — the Aug 2026 UPI shopping-agent demo. Its own git repo, contains live
-  credentials, deliberately kept separate.
-- GLP-1 healthtech work, exporter-scraping scripts — unrelated projects that shared a folder.
-
-## Where to start reading
-
-1. [`docs/pitch/UAP.md`](docs/pitch/UAP.md) — the whole argument in 12 slides. Slides 6 and 7 are the persuasive core.
-2. [`docs/research/assumptions-forward-2026-08.md`](docs/research/assumptions-forward-2026-08.md) — what this is betting on, and what would kill it.
-3. [`sim/README.md`](sim/README.md) — the environment, and what building it surfaced.
-4. [`ROADMAP.md`](ROADMAP.md) — what happens next.
+1. [`docs/thesis/problem-statement.md`](docs/thesis/problem-statement.md)
+2. [`sim/README.md`](sim/README.md)
+3. [`docs/research/corpus-corrections-2026-08.md`](docs/research/corpus-corrections-2026-08.md)

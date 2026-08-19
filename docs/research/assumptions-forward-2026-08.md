@@ -106,6 +106,13 @@ never written down, so nothing was learned when reality diverged."
 
 ## The simulated world (A7-A15)
 
+> **Scope note, 19 Aug 2026.** The project narrowed to *delegated payments only* —
+> work starts when the agent tries to pay, with the cart already full. Assumptions
+> below that concern product discovery, price comparison or shop selection (most of
+> A10 and A11) are now out of scope and are kept only as record. A7, A8, A9, A12,
+> A13, A14 and A15 all still apply.
+
+
 Added **2026-08-19** when `sim/` was built. A1-A6 are bets about how the world
 resolves. These are the *world the simulation runs in* -- the state of affairs
 assumed true so that delegated agent payment is possible at all. Each is stated so
