@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>From Intent to Settlement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap">
+
+<style>
+:root{
+  --ground:#f4f6f4;
+  --panel:#fbfcfb;
+  --ink:#16191c;
+  --ink-soft:#5a625f;
+  --ink-faint:#8a918e;
+  --rule:#dde2dd;
+  --rule-soft:#e9ede9;
+  --flight:#b06d1c;
+  --flight-wash:#f6ecdc;
+  --pass:#2f7d4f;
+  --pass-wash:#e4f0e8;
+  --refuse:#b03a2c;
+  --refuse-wash:#f7e6e3;
+  --mine:#1f6a72;
+  --mine-wash:#e0eff0;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#14171a;
+    --panel:#1b1f23;
+    --ink:#e6eae7;
+    --ink-soft:#a3aca8;
+    --ink-faint:#767f7b;
+    --rule:#2c3238;
+    --rule-soft:#232a2f;
+    --flight:#d99a45;
+    --flight-wash:#2e2417;
+    --pass:#5cbb84;
+    --pass-wash:#182619;
+    --refuse:#e0705f;
+    --refuse-wash:#2b1a18;
+    --mine:#5fb6bf;
+    --mine-wash:#132628;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#14171a;
+  --panel:#1b1f23;
+  --ink:#e6eae7;
+  --ink-soft:#a3aca8;
+  --ink-faint:#767f7b;
+  --rule:#2c3238;
+  --rule-soft:#232a2f;
+  --flight:#d99a45;
+  --flight-wash:#2e2417;
+  --pass:#5cbb84;
+  --pass-wash:#182619;
+  --refuse:#e0705f;
+  --refuse-wash:#2b1a18;
+  --mine:#5fb6bf;
+  --mine-wash:#132628;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"IBM Plex Serif",Georgia,serif;
+  font-size:16.5px;
+  line-height:1.62;
+}
+.page{max-width:60rem;margin:0 auto;padding:3.5rem 1.5rem 6rem}
+
+h1,h2,h3,.label,.stage-n,.tag,table{font-family:"IBM Plex Sans",system-ui,sans-serif}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+
+.label{
+  font-size:.7rem;text-transform:uppercase;letter-spacing:.13em;
+  font-weight:600;color:var(--ink-faint);
+}
+h1{
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  font-size:clamp(1.9rem,4.2vw,2.7rem);font-weight:600;letter-spacing:-.02em;
+  line-height:1.12;margin:.6rem 0 0;text-wrap:balance;
+}
+.deck{
+  font-size:1.12rem;color:var(--ink-soft);max-width:38rem;
+  margin:1rem 0 0;text-wrap:pretty;
+}
+h2{
+  font-size:1.22rem;font-weight:600;letter-spacing:-.01em;
+  margin:0 0 .2rem;text-wrap:balance;
+}
+h3{font-size:.98rem;font-weight:600;margin:0 0 .35rem}
+p{margin:0 0 .85rem;max-width:40rem}
+p:last-child{margin-bottom:0}
+
+hr.sep{border:0;border-top:1px solid var(--rule);margin:3.2rem 0}
+
+/* ---- the spine ---- */
+.spine{display:flex;flex-direction:column;gap:0;margin-top:1.6rem}
+.stage{
+  display:grid;grid-template-columns:3.4rem 1fr;gap:1.4rem;
+  padding:1.5rem 0;border-top:1px solid var(--rule-soft);
+}
+.stage:first-child{border-top:0}
+.stage-n{
+  font-size:.78rem;font-weight:600;color:var(--ink-faint);
+  font-variant-numeric:tabular-nums;padding-top:.22rem;letter-spacing:.04em;
+}
+.stage-body{min-width:0}
+.tag{
+  display:inline-block;font-size:.66rem;font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;padding:.16rem .5rem;border-radius:3px;
+  vertical-align:.14em;margin-left:.5rem;
+}
+.tag.new{background:var(--mine-wash);color:var(--mine)}
+
+.detail{
+  background:var(--panel);border:1px solid var(--rule);border-radius:5px;
+  padding:.7rem .9rem;margin-top:.8rem;font-size:.83rem;line-height:1.75;
+  overflow-x:auto;
+}
+.detail dl{display:grid;grid-template-columns:auto 1fr;gap:.1rem 1.1rem;margin:0}
+.detail dt{color:var(--ink-faint);font-family:"IBM Plex Sans",sans-serif;font-size:.78rem}
+.detail dd{margin:0;font-family:"IBM Plex Mono",monospace;font-size:.81rem}
+
+/* ---- gates ---- */
+.gates{display:flex;flex-direction:column;gap:.7rem;margin-top:1.1rem}
+.gate{
+  border:1px solid var(--rule);border-radius:6px;background:var(--panel);
+  padding:.9rem 1.1rem;border-left:3px solid var(--rule);
+}
+.gate.g1{border-left-color:var(--mine)}
+.gate.g2,.gate.g3{border-left-color:var(--ink-faint)}
+.gate h3{display:flex;align-items:baseline;gap:.55rem;flex-wrap:wrap}
+.gate .knows{color:var(--ink-soft);font-size:.9rem;margin:.15rem 0 0}
+.gate .knows em{font-style:italic;color:var(--ink)}
+
+/* ---- diagram ---- */
+figure{margin:1.6rem 0 0}
+.figwrap{overflow-x:auto;border:1px solid var(--rule);border-radius:6px;background:var(--panel);padding:1.3rem 1rem}
+figcaption{font-family:"IBM Plex Sans",sans-serif;font-size:.8rem;color:var(--ink-soft);margin-top:.7rem;max-width:40rem}
+svg{display:block;margin:0 auto;max-width:100%;height:auto}
+.svg-l{font-family:"IBM Plex Sans",sans-serif;font-size:11.5px;font-weight:500;fill:var(--ink)}
+.svg-s{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:var(--ink-faint)}
+.svg-a{font-family:"IBM Plex Sans",sans-serif;font-size:10px;font-weight:600;fill:var(--ink-soft);letter-spacing:.04em}
+
+/* ---- table ---- */
+.tablewrap{overflow-x:auto;margin-top:1.1rem}
+table{width:100%;border-collapse:collapse;font-size:.87rem}
+th{
+  text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--ink-faint);font-weight:600;padding:0 .9rem .5rem 0;
+  border-bottom:1px solid var(--rule);white-space:nowrap;
+}
+td{padding:.55rem .9rem .55rem 0;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+td.mono{font-variant-numeric:tabular-nums}
+.yes{color:var(--pass);font-weight:600}
+.no{color:var(--refuse);font-weight:600}
+
+/* ---- verdict pair ---- */
+.verdicts{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1.2rem}
+@media (max-width:640px){.verdicts{grid-template-columns:1fr}}
+.v{border:1px solid var(--rule);border-radius:6px;padding:1rem 1.1rem;background:var(--panel)}
+.v.off{border-top:3px solid var(--refuse)}
+.v.on{border-top:3px solid var(--pass)}
+.v .who{font-family:"IBM Plex Sans",sans-serif;font-size:.78rem;color:var(--ink-soft);margin:0 0 .45rem}
+.v .out{font-family:"IBM Plex Sans",sans-serif;font-size:1.15rem;font-weight:600;margin:0}
+.v.off .out{color:var(--refuse)}
+.v.on .out{color:var(--pass)}
+.v .why{font-size:.83rem;color:var(--ink-soft);margin:.5rem 0 0;font-family:"IBM Plex Mono",monospace;line-height:1.6}
+
+.callout{
+  border-left:3px solid var(--flight);background:var(--flight-wash);
+  padding:.95rem 1.1rem;border-radius:0 5px 5px 0;margin-top:1.4rem;
+}
+.callout p{margin:0;max-width:38rem}
+
+.foot{margin-top:3.5rem;padding-top:1.3rem;border-top:1px solid var(--rule);
+      font-size:.83rem;color:var(--ink-faint)}
+.foot code{font-size:.8rem;color:var(--ink-soft)}
+</style>
+
+</head>
+<body>
+<div class="page">
+
+  <p class="label">Delegated payments &middot; walkthrough</p>
+  <h1>From Intent to Settlement</h1>
+  <p class="deck">What happens, in order, when an AI agent tries to pay a ₹499 invoice
+  — and the one check that decides whether the user gets charged what they agreed to.</p>
+
+  <hr class="sep">
+
+  <p class="label">The sequence</p>
+  <h2>Seven stages</h2>
+  <p>Stages 0 to 2 happen before any money is at risk. Stage 3 is where a payment is
+  refused or allowed. Stages 4 to 6 are the rails.</p>
+
+  <div class="spine">
+
+    <div class="stage">
+      <div class="stage-n">00</div>
+      <div class="stage-body">
+        <h2>The user grants a mandate</h2>
+        <p>Once, in their UPI app, with their PIN. <strong>This is the only time a human
+        authenticates.</strong> Everything after it is machine-to-machine.</p>
+        <div class="detail"><dl>
+          <dt>payee allowed</dt><dd>brewhouse@ybl</dd>
+          <dt>per payment</dt><dd>₹1,000.00</dd>
+          <dt>total cap</dt><dd>₹5,000.00</dd>
+          <dt>valid until</dt><dd>2027-08-19</dd>
+        </dl></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">01</div>
+      <div class="stage-body">
+        <h2>An event arrives</h2>
+        <p>An invoice, a webhook, a scheduled trigger. The agent did not ask for it and
+        does not control it, so everything in it is untrusted input.</p>
+        <div class="detail"><dl>
+          <dt>invoice</dt><dd>INV-900</dd>
+          <dt>payee</dt><dd>brewhouse@ybl</dd>
+          <dt>amount</dt><dd>₹499.00</dd>
+          <dt>plan</dt><dd>monthly</dd>
+        </dl></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">02</div>
+      <div class="stage-body">
+        <h2>The agent proposes</h2>
+        <p>It reads the standing instruction and the event, then emits an intent: a
+        proposal and nothing more. <strong>The agent cannot move money.</strong> Its
+        module imports no rails, and a test asserts that so it stays true.</p>
+        <div class="detail"><dl>
+          <dt>should_pay</dt><dd>true</dd>
+          <dt>amount</dt><dd>₹499.00</dd>
+          <dt>confidence</dt><dd>0.95</dd>
+        </dl></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">03</div>
+      <div class="stage-body">
+        <h2>Three gates, in this order</h2>
+        <p>Each gate answers a different question, and all three must pass. A gate that
+        fails stops the payment before anything reaches the rails.</p>
+
+        <div class="gates">
+          <div class="gate g1">
+            <h3>Order gate <span class="tag new">this thesis</span></h3>
+            <p class="knows">Knows <em>what the user agreed to buy.</em> Checks that the
+            amount and the payee still match the signed order, that the order adds up,
+            and that it is not stale.</p>
+          </div>
+          <div class="gate g2">
+            <h3>Mandate</h3>
+            <p class="knows">Knows <em>what the user permitted.</em> Is it active and in
+            date, is this payee in scope, is the amount under the ceiling, is there
+            headroom left in the cap.</p>
+          </div>
+          <div class="gate g3">
+            <h3>Policy</h3>
+            <p class="knows">Knows <em>what the operator permits.</em> A global ceiling,
+            a daily total, a velocity limit, duplicate suppression, and a floor on the
+            agent's own confidence.</p>
+          </div>
+        </div>
+
+        <div class="callout">
+          <p>The order gate runs first on purpose. <strong>"Can they afford it" is a
+          different question from "did they agree to it"</strong>, and only the second
+          one notices a ₹600 charge against a ₹118 basket.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">04</div>
+      <div class="stage-body">
+        <h2>Two legs, not one</h2>
+        <p>The money leaves the payer, sits in a suspense account, then arrives. Between
+        the two legs it is real, has left one bank, and has not reached the other.</p>
+        <p><strong>Mandate headroom is consumed after the debit succeeds</strong> — not
+        at authorisation, which would let a failed payment permanently eat the user's
+        cap, and not at settlement, which would let two payments both pass the same
+        limit.</p>
+
+        <figure>
+          <div class="figwrap">
+            <svg viewBox="0 0 660 190" role="img" aria-label="A payment splits into a debit leg and a credit leg with a suspense account between them.">
+              <defs>
+                <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+                  <path d="M0,1 L8,4.5 L0,8 z" fill="var(--ink-faint)"/>
+                </marker>
+              </defs>
+
+              <rect x="8" y="52" width="150" height="58" rx="5" fill="var(--ground)" stroke="var(--rule)"/>
+              <text class="svg-l" x="83" y="76" text-anchor="middle">Payer's bank</text>
+              <text class="svg-s" x="83" y="93" text-anchor="middle">ashutosh@okhdfc</text>
+
+              <rect x="255" y="52" width="150" height="58" rx="5" fill="var(--flight-wash)" stroke="var(--flight)"/>
+              <text class="svg-l" x="330" y="76" text-anchor="middle">Suspense</text>
+              <text class="svg-s" x="330" y="93" text-anchor="middle">money in flight</text>
+
+              <rect x="502" y="52" width="150" height="58" rx="5" fill="var(--ground)" stroke="var(--rule)"/>
+              <text class="svg-l" x="577" y="76" text-anchor="middle">Payee's bank</text>
+              <text class="svg-s" x="577" y="93" text-anchor="middle">brewhouse@ybl</text>
+
+              <line x1="162" y1="81" x2="248" y2="81" stroke="var(--ink-faint)" stroke-width="1.4" marker-end="url(#ar)"/>
+              <text class="svg-a" x="205" y="70" text-anchor="middle">DEBIT</text>
+
+              <line x1="409" y1="81" x2="495" y2="81" stroke="var(--ink-faint)" stroke-width="1.4" marker-end="url(#ar)"/>
+              <text class="svg-a" x="452" y="70" text-anchor="middle">CREDIT</text>
+
+              <text class="svg-s" x="205" y="103" text-anchor="middle">headroom consumed</text>
+
+              <line x1="330" y1="118" x2="330" y2="146" stroke="var(--flight)" stroke-width="1.4" stroke-dasharray="3 3" marker-end="url(#ar)"/>
+              <text class="svg-a" x="330" y="166" text-anchor="middle" fill="var(--flight)">IF THE RESPONSE IS LOST → TIMED_OUT</text>
+
+              <text class="svg-s" x="330" y="35" text-anchor="middle">the interesting failures all live here</text>
+            </svg>
+          </div>
+          <figcaption>Between the two legs the switch can genuinely not know what
+          happened. It must not claim success, and it must not retry.</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">05</div>
+      <div class="stage-body">
+        <h2>Reconciliation resolves what was left stranded</h2>
+        <p>A sweep asks both banks what actually posted, and acts on the answer. It is
+        idempotent, so running it twice changes nothing.</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Debit posted</th><th>Credit posted</th><th>What the sweep does</th></tr></thead>
+            <tbody>
+              <tr><td class="yes">yes</td><td class="yes">yes</td><td>Complete it — the payment settles</td></tr>
+              <tr><td class="yes">yes</td><td class="no">no</td><td>Reverse it, return the money, release the mandate headroom</td></tr>
+              <tr><td class="no">no</td><td class="no">no</td><td>Nothing to undo — mark it failed</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">06</div>
+      <div class="stage-body">
+        <h2>The books are audited</h2>
+        <p>Every balance is re-derived from the ledger entries rather than read from a
+        stored number. Each transaction's entries must net to zero, the whole ledger must
+        net to zero, and the suspense account must be empty — nothing left in flight.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <hr class="sep">
+
+  <p class="label">Why the order gate exists</p>
+  <h2>The same payment, run both ways</h2>
+  <p>The user agreed to a basket of ₹118. The agent asks for ₹600 from the same shop.
+  The mandate allows ₹1,000 a payment, so nothing about the limits is violated.</p>
+
+  <div class="verdicts">
+    <div class="v off">
+      <p class="who">Without the order gate — UPI today</p>
+      <p class="out">ALLOWED</p>
+      <p class="why">15 checks, all passed</p>
+    </div>
+    <div class="v on">
+      <p class="who">With the order gate</p>
+      <p class="out">REFUSED</p>
+      <p class="why">21 checks<br>✗ amount_matches_order<br>paying ₹600.00 against agreed ₹118.00</p>
+    </div>
+  </div>
+
+  <p style="margin-top:1.3rem">The mandate and the policy both pass, because neither of
+  them holds any record of what the user agreed to buy. That record is the missing piece.</p>
+
+  <div class="callout">
+    <p><strong>The finding on signatures.</strong> A self-consistent inflated order — one
+    whose lines really do add to ₹600 — is approved whether the agent signs it, the shop
+    signs it, or both do. A signature proves who wrote a record, not that the record is
+    true. What actually refuses it is a per-payment ceiling close to the real basket size.</p>
+  </div>
+
+  <p class="foot">
+    Run it yourself: <code>python src/cli.py consent</code> for the comparison above,
+    <code>python src/cli.py --fresh demo</code> for the full lifecycle.
+    60 tests pass — 44 on the rails, ledger and reconciliation, 16 on the order gate.
+    Simulated rails throughout: no real NPCI connection, no settlement windows, no UPI
+    PIN cryptography.
+  </p>
+
+</div>
+</body>
+</html>
