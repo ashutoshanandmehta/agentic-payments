@@ -1,1 +1,16 @@
+# The simulator core -- ledger, rails, mandates, policy, reconciliation, CLI,
+# and the order gate's tests -- runs on stdlib plus one dependency.
+
+# Ed25519 signatures for the order gate (src/consent.py). Without it the gate
+# falls back to a hash stub, which is fine for logic but proves nothing.
 cryptography>=42.0
+
+# --- optional, one capability each ---
+
+# REST API
+fastapi>=0.115
+uvicorn[standard]>=0.32
+
+# LLM planner. Without this the agent uses the deterministic RulePlanner and the
+# whole system still runs end to end.
+anthropic>=0.70

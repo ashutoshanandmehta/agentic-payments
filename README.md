@@ -7,103 +7,146 @@ prove it afterwards?
 
 ## Scope
 
-My work starts at the moment the agent tries to pay. The cart is already full, and
+The work starts at the moment the agent tries to pay. The cart is already full, and
 something else chose the products and picked the shop.
 
-Product search, price comparison and shop selection are agentic commerce. They are out
-of scope.
+Product search, price comparison and shop selection are agentic commerce. Out of scope.
 
-The payment goes through UPI, India's payment system.
+## What runs here
 
-## The gap
-
-UPI makes you name the shop when you create a payment authority. UPI Autopay is locked
-to one payee. UPI Reserve Pay blocks money for one specific shop.
-
-But an agent does not know which shop it is paying until the cart is finished.
-
-You can work around it by pre-blocking at every shop the agent might use. Three shops
-means Rs 30,000 of the customer's money locked up, and you have to list the shops in
-advance. So the honest version of the gap is:
-
-> UPI has no single payment authority that can be spent across an **open** set of
-> shops. You can approximate it by naming the shops in advance and paying the capital
-> cost, but you cannot express "spend up to Rs 1,000 at whichever grocery shop turns
-> out to be cheapest."
-
-## The mechanism
-
-Describing the gap is not a contribution. `arXiv:2604.15367` already published the
-observation that instruction origin goes unverified after a mandate is created. Only a
-mechanism counts.
-
-The mechanism: four signed records at the payment boundary, and two arithmetic checks
-between them.
-
-The records are the authority, the cart, the request, and the settlement. The checks
-are: does the request still match the cart, and does the cart fit inside the authority.
-
-Both checks are arithmetic. No language model sits in the approval path, because a bank
-cannot refuse a payment on a probability.
-
-## The simulation
-
-`sim/` implements it. 22 scenarios, 16 refused, 6 approved, all matching what they
-predicted.
+A simulator with real UPI-shaped rails: a double-entry ledger, a two-leg payment with
+a suspense account in between, injectable failures, and a reconciliation sweep. On top
+of it sits the piece this thesis is about — an **order gate** that checks whether a
+payment matches what the user actually agreed to buy.
 
 ```bash
-python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
-./.venv/bin/python -m sim.run          # all 22 scenarios in the terminal
-./.venv/bin/python -m sim.web          # web interface at http://localhost:8000
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+.venv/bin/python src/cli.py consent      # the finding, in one command
+python3 src/cli.py --fresh demo          # the full payment lifecycle, narrated
+python3 tests/test_sim.py                # 44 tests: rails, ledger, recon
+.venv/bin/python tests/test_consent.py   # 16 tests: the order gate
 ```
 
-The most interesting result is about a question I had not settled: **who should sign
-the cart?**
+## The gap this closes
 
-It matters less than expected. A cart claiming Rs 600, internally consistent, against a
-human who only agreed to Rs 118, is approved whether the agent signs it, the shop signs
-it, or both do. A signature proves who wrote a record, not that the record is true.
+A mandate says how much the user may spend and with whom. A policy says what the
+operator permits. **Neither knows what the user agreed to buy.**
 
-What stops it is a tight limit in the authority. **The protection comes from the limit
-the human set, not from who signed the cart.**
+So a ₹5,000 mandate for `brewhouse@ybl` happily authorises a ₹600 payment to
+`brewhouse@ybl`, even when the basket the human saw came to ₹118. Every limit is
+respected and the user is still overcharged.
 
-## Files
+`src/cli.py consent` shows exactly this:
 
 ```
-docs/thesis/
-  problem-statement.md          the problem, scoped to the payment boundary
-  thesis-problem-definition.md  earlier version, predates the narrowing
+User agreed to ₹118.00.  Agent is asking for ₹600.00.
 
-docs/research/
-  corpus-corrections-2026-08.md             claims that turned out wrong. read first.
-  agentic-payments-fact-base-2026-08.md     verified facts with sources
-  assumptions-forward-2026-08.md            what I assume, and what would disprove it
-  agentic-commerce-india-research-report.md background, mostly out of scope now
+  WITHOUT the order gate (UPI today)
+    ALLOWED   15 checks
 
-sim/                            the simulation. see sim/README.md
+  WITH the order gate
+    REFUSED   21 checks
+      x amount_matches_order   paying ₹600.00 against agreed ₹118.00
 ```
+
+The gate is **off by default**, so the base system behaves the way UPI does today and
+the comparison is one flag.
+
+## The finding: who signs the order matters less than expected
+
+The obvious next question was who should sign the order — the agent, the merchant, or
+both. `tests/test_consent.py` runs all three against a *self-consistent* inflated
+order, one whose lines really do add to ₹600.
+
+All three approve it.
+
+A signature proves who wrote a record. It does not prove the record is true. Once the
+order is the only surviving evidence of the agreement, there is nothing left to compare
+it against.
+
+What refuses it is a per-transaction ceiling close to the real basket size. **The
+protection comes from the limit the user set, not from who signed the order.**
+
+Requiring both signatures also has a cost that shows up as a test: if merchants must
+sign and no merchant has integrated, every payment stops, including the honest ones.
+
+## How a payment flows
+
+```
+standing instruction + event
+        │
+        ▼
+   ┌─────────┐  intent   ┌──────────────────────────┐  authorised  ┌────────┐
+   │  Agent  │ ────────▶ │ order gate → mandate →   │ ───────────▶ │ Switch │
+   │         │           │ policy   (deterministic) │              │ (NPCI) │
+   └─────────┘           └──────────────────────────┘              └───┬────┘
+    proposes                       disposes                            │
+                                                             debit ◀───┴───▶ credit
+                                                                 │           │
+                                                        remitter bank   beneficiary bank
+                                                                 └──▶ suspense ──▶
+```
+
+The agent cannot move money. It emits a proposal and nothing else — `src/agent.py`
+imports no rails, and a test asserts that so it stays true.
+
+The order gate runs **before** the mandate on purpose. "Can they afford it" is a
+different question from "did they agree to it", and only the second one notices a ₹600
+charge against a ₹118 basket.
+
+## Layout
+
+```
+src/consent.py       the order, Ed25519 signing, and the order gate   <- the contribution
+src/policy.py        mandate validation + operator policy + the order gate
+src/core.py          Money as integer paise, VPA/RRN/UMN, NPCI response codes
+src/models.py        domain objects and the transaction state machine
+src/store.py         SQLite, double-entry ledger, idempotency, audit trail
+src/rails.py         banks, NPCI-style switch, fault injection
+src/agent.py         Claude planner + deterministic fallback (imports no rails)
+src/orchestrator.py  lifecycle state machine
+src/recon.py         reconciliation sweep and ledger audit
+src/sim.py           wiring and the demo world
+src/cli.py           command line
+src/api.py           FastAPI REST layer
+
+tests/test_sim.py      44 tests: money, idempotency, mandate, policy, faults, recon
+tests/test_consent.py  16 tests: the order gate and the signing experiment
+
+docs/thesis/         problem statement
+docs/research/       fact base, corrections, forward assumptions
+sim/                 earlier standalone prototype, superseded by src/
+```
+
+## Provenance
+
+The rails, ledger, reconciliation and CLI came from a separate simulator
+(`~/Downloads/upi-agent-sim`), merged in on 20 Aug 2026. The order gate, the signing
+experiment and `tests/test_consent.py` are this project's addition. Both test suites
+pass together: 44 + 16.
 
 ## How facts are marked
 
-- `PRIMARY` - checked against the actual source
-- `SECONDARY` - someone reliable reported it, not verified directly
-- `UNVERIFIED` - believed, not checked. Do not build on it.
-- `CONTESTED` - sources disagree, or it was checked and failed
+- `PRIMARY` — checked against the actual source
+- `SECONDARY` — someone reliable reported it, not verified directly
+- `UNVERIFIED` — believed, not checked. Do not build on it.
+- `CONTESTED` — sources disagree, or it was checked and failed
 
-`corpus-corrections-2026-08.md` records claims that were wrong, including three that
-were load-bearing. That file is the standard, not an embarrassment.
+`docs/research/corpus-corrections-2026-08.md` records claims that turned out wrong,
+including three load-bearing ones. That file is the standard, not an embarrassment.
 
 ## Still to verify
 
-- Read **NPCI OC 228** section by section. Two claims depend on it, and NPCI's site
-  blocks automated fetching.
-- Check whether **Juspay** has published an AP2-to-UPI binding. They are an AP2 launch
-  partner, Indian, and work on UPI. If they have, part of the novelty is gone.
-- Find any RBI or NPCI statement on whether agent payments fall inside the e-mandate
-  exemption. This decides whether agent payments on UPI are already legal.
+- Read **NPCI OC 228** section by section. NPCI's site blocks automated fetching.
+- Check whether **Juspay** has published an AP2-to-UPI binding. If they have, part of
+  the novelty is gone.
+- Find any RBI or NPCI statement on whether agent payments sit inside the e-mandate
+  exemption. That decides whether agent payments on UPI are already legal.
 
-## Where to start
+## What this is not
 
-1. [`docs/thesis/problem-statement.md`](docs/thesis/problem-statement.md)
-2. [`sim/README.md`](sim/README.md)
-3. [`docs/research/corpus-corrections-2026-08.md`](docs/research/corpus-corrections-2026-08.md)
+Simulated rails, not a PSP integration. No real NPCI connection, no settlement windows,
+no bank cut-offs, no UPI PIN cryptography, no scheme compliance. `SIM-` prefixed
+response codes are this simulator's own, marked so nobody mistakes them for switch
+responses.
