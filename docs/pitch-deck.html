@@ -101,6 +101,31 @@ em{font-style:italic}
 .note{font-size:.86rem;color:var(--faint);margin-top:1.6rem;max-width:42rem}
 .note code{font-family:"Roboto Mono",monospace;font-size:.9em}
 
+.flowwrap{overflow-x:auto;margin-top:1.3rem}
+.flow{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
+@media(max-width:820px){.flow{grid-template-columns:1fr}}
+.fcol{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1.2rem 1.3rem}
+.fcol.upi{border-top:3px solid var(--amber)}
+.fcol.card{border-top:3px solid var(--go)}
+.fcol h3{font-family:"Bricolage Grotesque",sans-serif;font-size:1.25rem;font-weight:700;margin-bottom:.15rem}
+.fcol .tag{font-family:"Roboto Mono",monospace;font-size:.72rem;color:var(--faint);display:block;margin-bottom:.9rem}
+.fstep{display:grid;grid-template-columns:1.5rem 1fr;gap:.6rem;padding:.42rem 0;font-size:.92rem;align-items:start}
+.fstep .s{font-family:"Roboto Mono",monospace;font-size:.72rem;color:var(--faint);padding-top:.2rem}
+.fstep.hold{background:var(--amber-wash);border-radius:5px;padding:.42rem .5rem;margin:.2rem -.5rem}
+.fstep.ours{font-weight:600}
+.fstep.ours .s{color:var(--amber)}
+.fnote{font-size:.85rem;color:var(--soft);margin-top:.9rem;padding-top:.7rem;border-top:1px solid var(--line)}
+.fnote b{color:var(--ink)}
+
+.supply{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-top:1.4rem}
+@media(max-width:820px){.supply{grid-template-columns:1fr}}
+.sup{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1.2rem 1.3rem}
+.sup h3{font-family:"Bricolage Grotesque",sans-serif;font-size:1.15rem;font-weight:700}
+.sup ul{margin:.7rem 0 0;padding-left:1.1rem;font-size:.95rem}
+.sup li{margin-bottom:.45rem}
+.sup li.done{color:var(--faint);text-decoration:line-through}
+.sup .count{font-family:"Roboto Mono",monospace;font-size:.75rem;color:var(--amber);display:block;margin-top:.15rem}
+
 .nav{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);
   background:var(--panel);border:1px solid var(--line);border-radius:20px;
   padding:.3rem .5rem;display:flex;gap:.2rem;align-items:center;z-index:50;
@@ -187,25 +212,91 @@ em{font-style:italic}
       <h3>UPI</h3>
       <p class="has"><strong>Has:</strong> mandates, spend caps, ReservePay blocks,
       near-zero cost, and the volume.</p>
-      <div class="gap"><b>Missing:</b> the rail has no field for an agent. A block
-      authorises <em>a merchant to debit</em>, not <em>an agent to spend</em>. And UDIR
-      has no dispute code for "the machine bought the wrong thing."</div>
+      <div class="gap"><b>Missing:</b> no field for an agent. A block authorises
+      <em>a merchant to debit</em>, not <em>an agent to spend</em>. And UDIR has no
+      dispute code for "the machine bought the wrong thing."</div>
     </div>
     <div class="rail">
       <h3>Cards</h3>
-      <p class="has"><strong>Has:</strong> agent identity in the token, merchant scope
-      enforced by the network, and 120-day chargebacks.</p>
+      <p class="has"><strong>Has:</strong> agent identity inside the token, merchant
+      scope enforced by the network, 120-day chargebacks, and a credit line.</p>
       <div class="gap"><b>Missing:</b> the token knows the limit and the category. It
       never knows what was in the basket.</div>
     </div>
   </div>
-  <p class="big" style="margin-top:1.5rem">Different gap on each rail. <strong>The same
-  layer fills both.</strong> That is the product, and a rail company cannot copy it —
-  they only own one rail.</p>
+  <p class="big" style="margin-top:1.5rem">Different gap on each. <strong>The same
+  layer fills both</strong> — and a rail company cannot copy that, because they only
+  own one rail.</p>
 </div></section>
 
 <!-- 6 -->
 <section class="slide"><span class="n">06</span><div class="inner">
+  <p class="kicker">The two pathways</p>
+  <h2>Same purchase. Two completely different architectures.</h2>
+  <div class="flowwrap"><div class="flow">
+
+    <div class="fcol upi">
+      <h3>UPI</h3>
+      <span class="tag">pre-funded &middot; ReservePay</span>
+      <div class="fstep"><span class="s">1</span><span>Owner approves a block in their UPI app, with PIN</span></div>
+      <div class="fstep ours"><span class="s">2</span><span>We issue the agent an identity and limits &mdash; the rail has nowhere to put them</span></div>
+      <div class="fstep"><span class="s">3</span><span>Agent builds the basket</span></div>
+      <div class="fstep ours"><span class="s">4</span><span>We check the payment against the basket</span></div>
+      <div class="fstep hold"><span class="s">5</span><span>Funds move out of the owner's account onto the agent's card</span></div>
+      <div class="fstep hold"><span class="s">6</span><span>Card pays the merchant</span></div>
+      <div class="fstep"><span class="s">7</span><span>Anything unspent sweeps back</span></div>
+      <p class="fnote">Money rests with the agent between 5 and 7. <b>Holding it needs
+      a PPI licence.</b> Zero MDR, and the volume is here.</p>
+    </div>
+
+    <div class="fcol card">
+      <h3>Cards</h3>
+      <span class="tag">post-paid &middot; Mastercard Agent Pay</span>
+      <div class="fstep"><span class="s">1</span><span>Owner enrols their card; biometric ID&amp;V, passkey bound</span></div>
+      <div class="fstep"><span class="s">2</span><span>Issuer mints an Agentic Token via MDES &mdash; agent id, caps, categories, expiry</span></div>
+      <div class="fstep"><span class="s">3</span><span>Agent builds the basket</span></div>
+      <div class="fstep ours"><span class="s">4</span><span>We check the payment against the basket</span></div>
+      <div class="fstep"><span class="s">5</span><span>Token presented at checkout with a Verifiable Intent credential</span></div>
+      <div class="fstep"><span class="s">6</span><span>Network validates the scope, issuer authorises the real card</span></div>
+      <div class="fstep"><span class="s">7</span><span>Cardholder &rarr; merchant, directly</span></div>
+      <p class="fnote"><b>Money never rests anywhere.</b> The token routes; it holds
+      nothing. ~2% MDR, and disputes already exist.</p>
+    </div>
+
+  </div></div>
+</div></section>
+
+<!-- 7 -->
+<section class="slide"><span class="n">07</span><div class="inner">
+  <p class="kicker">What we actually supply</p>
+  <h2>Three things on UPI. One thing on cards. The one is the same on both.</h2>
+  <div class="supply">
+    <div class="sup">
+      <h3>On UPI</h3>
+      <span class="count">we build all three</span>
+      <ul>
+        <li>Agent identity &mdash; the rail has no field for it</li>
+        <li>Scope enforcement &mdash; a block cannot express "groceries only"</li>
+        <li><b>The order check</b> &mdash; does the payment match the basket</li>
+      </ul>
+    </div>
+    <div class="sup">
+      <h3>On cards</h3>
+      <span class="count">the network already does two</span>
+      <ul>
+        <li class="done">Agent identity &mdash; in the Agentic Token</li>
+        <li class="done">Scope enforcement &mdash; validated network-side</li>
+        <li><b>The order check</b> &mdash; nobody does this</li>
+      </ul>
+    </div>
+  </div>
+  <p class="big" style="margin-top:1.5rem"><strong>The order check is the constant.</strong>
+  Everything else is scaffolding that varies by rail &mdash; and on cards, most of it
+  is already built for us.</p>
+</div></section>
+
+<!-- 8 -->
+<section class="slide"><span class="n">08</span><div class="inner">
   <p class="kicker">What we are</p>
   <h2>Not a rail. Not a wallet. The check and the receipt.</h2>
   <div class="two">
@@ -226,8 +317,8 @@ em{font-style:italic}
   stopping future funding, and returning anything unspent.</p>
 </div></section>
 
-<!-- 7 -->
-<section class="slide"><span class="n">07</span><div class="inner">
+<!-- 9 -->
+<section class="slide"><span class="n">09</span><div class="inner">
   <p class="kicker">Why us</p>
   <h2>We built it, and it broke in four places nobody has written down.</h2>
   <div class="finds">
@@ -250,28 +341,35 @@ em{font-style:italic}
   looks like.</p>
 </div></section>
 
-<!-- 8 -->
-<section class="slide"><span class="n">08</span><div class="inner">
-  <p class="kicker">Where we start</p>
-  <h2>Machines that already buy, before machines that might.</h2>
-  <div class="segs">
-    <div class="seg now"><h3>EV charging</h3><p>Already an eligible ReservePay
-    category. NPCI built the primitive for this shape.</p></div>
-    <div class="seg now"><h3>Water purifiers</h3><p>Filter reorder on a schedule. Real
-    Indian install base today.</p></div>
-    <div class="seg now"><h3>Vending &amp; smart retail</h3><p>Unattended by
-    definition. Small tickets, high frequency.</p></div>
-    <div class="seg later"><h3>Smart appliances</h3><p>The flagship story. The install
-    base is not here yet — we arrive before it does.</p></div>
+<!-- 10 -->
+<section class="slide"><span class="n">10</span><div class="inner">
+  <p class="kicker">Sequencing</p>
+  <h2>Cards first. Not because they are bigger &mdash; because they need no licence.</h2>
+  <div class="two">
+    <div class="box">
+      <h3>Card path &middot; start here</h3>
+      <p>The token routes to the owner's card. Money goes cardholder to merchant and
+      never rests with us, so <strong>we hold no funds and need no PPI or PA
+      licence.</strong></p>
+      <p>The cost is a partnership: issuer enablement, acquirer integration, network
+      provisioning. No sandbox exists.</p>
+      <p><strong>A business development problem, not a capital one.</strong></p>
+    </div>
+    <div class="box">
+      <h3>UPI path &middot; when funded</h3>
+      <p>Zero MDR and where the volume is. But funding an agent's card means holding
+      customer money, and that is a <strong>PPI licence</strong>.</p>
+      <p>Direct ReservePay avoids the float but makes us a merchant redistributing to
+      other merchants, which is a <strong>PA licence &mdash; ₹15 crore net worth.</strong></p>
+      <p><strong>A capital problem, and it does not go away with cleverness.</strong></p>
+    </div>
   </div>
-  <p class="big" style="margin-top:1.5rem">Same product. We sell where machines already
-  transact, and the fridge is where it goes.</p>
-  <p class="note">Segment sizing is not in this deck. Say so if asked — do not
-  improvise a number.</p>
+  <p class="big" style="margin-top:1.5rem">The order check is identical on both. We
+  ship it where the regulatory cost is zero, and carry it to UPI when we can afford to.</p>
 </div></section>
 
-<!-- 9 -->
-<section class="slide"><span class="n">09</span><div class="inner">
+<!-- 11 -->
+<section class="slide"><span class="n">11</span><div class="inner">
   <p class="kicker">The objection you are about to make</p>
   <h2>"Why doesn't Pine Labs just add this?"</h2>
   <p class="big">Because a rail that adjudicates disputes about its own payments is a
@@ -283,8 +381,8 @@ em{font-style:italic}
   nothing to defend.</p>
 </div></section>
 
-<!-- 10 -->
-<section class="slide"><span class="n">10</span><div class="inner">
+<!-- 12 -->
+<section class="slide"><span class="n">12</span><div class="inner">
   <p class="kicker">Honest risks</p>
   <h2>Three things that could sink this.</h2>
   <div class="two">
@@ -307,8 +405,8 @@ em{font-style:italic}
   </div>
 </div></section>
 
-<!-- 11 -->
-<section class="slide"><span class="n">11</span><div class="inner">
+<!-- 13 -->
+<section class="slide"><span class="n">13</span><div class="inner">
   <p class="kicker">The ask</p>
   <h2>What we need from this room.</h2>
   <div class="ask">
@@ -327,7 +425,7 @@ em{font-style:italic}
 
 <div class="nav">
   <button onclick="go(-1)" aria-label="Previous">&larr;</button>
-  <span id="pos">1 / 11</span>
+  <span id="pos">1 / 13</span>
   <button onclick="go(1)" aria-label="Next">&rarr;</button>
 </div>
 
