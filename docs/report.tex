@@ -19,7 +19,19 @@
 \usepackage{enumitem}
 \usepackage{xcolor}
 \usepackage{url}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
 \usepackage[hidelinks]{hyperref}
+
+% palette for the sequence diagram
+\definecolor{lnUser}{HTML}{3355C8}
+\definecolor{lnAgent}{HTML}{6A3FD4}
+\definecolor{lnCard}{HTML}{C8442F}
+\definecolor{lnMerch}{HTML}{0A7686}
+\definecolor{lnHot}{HTML}{FBEAE6}
+\definecolor{lnSweep}{HTML}{237A4C}
+\definecolor{lnGrey}{HTML}{7A8087}
 
 \newcommand{\rs}{Rs.\,}
 
@@ -274,6 +286,88 @@ This is the argument for the components constituting a purchasable product rathe
 three separable features.
 
 \section{Architecture}\label{sec:arch}
+Figure~\ref{fig:seq} traces a single purchase end to end across both rails.
+
+
+\begin{figure}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[x=1.12cm,y=1.05cm,font=\small,
+  >={Stealth[length=2.2mm]},
+  lane/.style={draw,rounded corners=2pt,inner xsep=6pt,inner ysep=4pt,font=\small\bfseries},
+  life/.style={densely dashed,lnGrey!60},
+  msg/.style={->,thick},
+  cap/.style={font=\scriptsize,text=black},
+  sub/.style={font=\scriptsize\ttfamily,text=lnGrey}]
+
+% exposure band, drawn first so everything sits on top
+\fill[lnHot] (-1.35,-8.05) rectangle (13.5,-5.15);
+\node[sub,anchor=east,text=lnCard] at (13.4,-5.45) {money is with the agent};
+
+% lifelines
+\node[lane,draw=lnUser,  text=lnUser]  (U) at (0,0)  {User};
+\node[lane,draw=lnAgent, text=lnAgent] (A) at (4,0)  {Agent};
+\node[lane,draw=lnCard,  text=lnCard]  (C) at (8.4,0){Virtual card};
+\node[lane,draw=lnMerch, text=lnMerch] (M) at (12.8,0){Merchant};
+\foreach \x in {0,4,8.4,12.8} \draw[life] (\x,-0.42) -- (\x,-11.3);
+
+% 1
+\node[sub] at (-1.15,-1.15) {1};
+\draw[msg,lnUser] (0,-1.15) -- (4,-1.15);
+\node[cap,above]  at (2,-1.1)  {grants mandate};
+\node[sub,below]  at (2,-1.22) {UPI PIN $\cdot$ the only human step};
+
+% 2
+\node[sub] at (-1.15,-2.35) {2};
+\draw[msg,lnAgent] (4,-2.35) -- (8.4,-2.35);
+\node[cap,above]   at (6.2,-2.3)  {card issued, bound to mandate};
+\node[sub,below]   at (6.2,-2.42) {limits and expiry live in the credential};
+
+% 3 self
+\node[sub] at (-1.15,-3.55) {3};
+\draw[msg,lnAgent] (4,-3.35) -- (5.0,-3.35) -- (5.0,-3.8) -- (4,-3.8);
+\node[cap,anchor=west]  at (5.2,-3.4)  {discovers, compares, builds the cart};
+\node[sub,anchor=west]  at (5.2,-3.78) {local model $\cdot$ no money involved yet};
+
+% 4 self
+\node[sub] at (-1.15,-4.75) {4};
+\draw[msg,lnAgent] (4,-4.55) -- (5.0,-4.55) -- (5.0,-5.0) -- (4,-5.0);
+\node[cap,anchor=west]  at (5.2,-4.6)  {signs an intent for the finished cart};
+\node[sub,anchor=west]  at (5.2,-4.98) {\rs 1,240 $\cdot$ 9 items $\cdot$ merchant named};
+
+% 5
+\node[sub] at (-1.15,-5.95) {5};
+\draw[msg,lnAgent] (4,-5.95) -- (0,-5.95);
+\node[cap,above] at (2,-5.9) {draws \rs 1,240 against the mandate};
+
+% 6
+\node[sub] at (-1.15,-6.85) {6};
+\draw[msg,lnCard,very thick] (0,-6.85) -- (8.4,-6.85);
+\node[cap,above] at (4.2,-6.8)  {funds load onto the card};
+\node[sub,below] at (4.2,-6.92) {UPI rail $\cdot$ mandate consumed here};
+
+% 7
+\node[sub] at (-1.15,-7.75) {7};
+\draw[msg,lnCard,very thick] (8.4,-7.75) -- (12.8,-7.75);
+\node[cap,above] at (10.6,-7.7)  {card pays the merchant};
+\node[sub,below] at (10.6,-7.82) {card rail $\cdot$ Agentic Token + Verifiable Intent};
+
+% 8
+\node[sub] at (-1.15,-8.75) {8};
+\draw[msg,lnMerch] (12.8,-8.75) -- (4,-8.75);
+\node[cap,above] at (8.4,-8.7) {order confirmed};
+
+% 9
+\node[sub] at (-1.15,-9.75) {9};
+\draw[msg,lnSweep,densely dashed] (8.4,-9.75) -- (0,-9.75);
+\node[cap,above] at (4.2,-9.7) {anything unspent sweeps back};
+
+\end{tikzpicture}}
+\caption{One purchase across both rails. Steps~5--7 are the only interval in which the
+funds belong to neither the owner nor the merchant.}
+\label{fig:seq}
+\end{figure}
+
 Two funding rails are offered concurrently; the owner selects one per agent. The
 control layer is identical in both cases. Their properties differ substantially
 (Table~\ref{tab:rails}).

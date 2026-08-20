@@ -98,6 +98,13 @@ td:first-child{font-weight:600;white-space:nowrap}
   font-size:.82rem;line-height:1.9;overflow-x:auto}
 .stack .l{color:var(--faint)}
 .stack .h{color:var(--teal);font-weight:500}
+.seqwrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);
+  border-radius:9px;padding:1.2rem .8rem;margin:1.2rem 0}
+.seqwrap svg{display:block;margin:0 auto}
+.sq-lane{font-family:"Instrument Sans",sans-serif;font-size:11.5px;font-weight:600}
+.sq-msg{font-family:"Instrument Sans",sans-serif;font-size:10.5px;font-weight:500;fill:var(--ink)}
+.sq-sub{font-family:"JetBrains Mono",monospace;font-size:9px;fill:var(--faint)}
+.sq-n{font-family:"JetBrains Mono",monospace;font-size:9px;fill:var(--faint)}
 .api{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:1rem 1.2rem;
   margin:1rem 0;font-family:"JetBrains Mono",monospace;font-size:.8rem;line-height:2;overflow-x:auto}
 .api .m{color:var(--teal);font-weight:500;display:inline-block;min-width:3.2rem}
@@ -381,7 +388,81 @@ and a number we cannot defend is worse than no number.</p>
 <!-- 05 -->
 <section id="s5"><h2><span class="k">07</span>Architecture</h2>
 <p>Two funding rails, offered together. The owner picks per agent. The control layer is
-identical either way.</p>
+identical either way. The figure below traces one purchase end to end.</p>
+
+<div class="seqwrap">
+<svg viewBox="0 0 790 560" width="790" height="560" role="img"
+     aria-label="Sequence diagram: the owner grants a mandate, the agent builds a cart, funds load onto a virtual card over UPI, the card pays the merchant on card rails, and unspent funds sweep back.">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,1 L7,4 L0,7 z" fill="currentColor"/></marker>
+  </defs>
+
+  <rect x="24" y="286" width="742" height="150" rx="5" fill="var(--warn-wash)"/>
+  <text class="sq-sub" x="758" y="304" text-anchor="end" fill="var(--warn)">money is with the agent</text>
+
+  <g fill="none" stroke-width="1">
+    <rect x="42" y="14" width="120" height="30" rx="5" stroke="#3355c8"/>
+    <rect x="242" y="14" width="120" height="30" rx="5" stroke="#6a3fd4"/>
+    <rect x="442" y="14" width="120" height="30" rx="5" stroke="#c8442f"/>
+    <rect x="642" y="14" width="120" height="30" rx="5" stroke="#0a7686"/>
+  </g>
+  <text class="sq-lane" x="102" y="34" text-anchor="middle" fill="#3355c8">User</text>
+  <text class="sq-lane" x="302" y="34" text-anchor="middle" fill="#6a3fd4">Agent</text>
+  <text class="sq-lane" x="502" y="34" text-anchor="middle" fill="#c8442f">Virtual card</text>
+  <text class="sq-lane" x="702" y="34" text-anchor="middle" fill="#0a7686">Merchant</text>
+  <g stroke="var(--line)" stroke-dasharray="3 4">
+    <line x1="102" y1="46" x2="102" y2="540"/><line x1="302" y1="46" x2="302" y2="540"/>
+    <line x1="502" y1="46" x2="502" y2="540"/><line x1="702" y1="46" x2="702" y2="540"/>
+  </g>
+
+  <text class="sq-n" x="26" y="82">1</text>
+  <line x1="102" y1="88" x2="294" y2="88" stroke="#3355c8" color="#3355c8" stroke-width="1.4" marker-end="url(#ar)"/>
+  <text class="sq-msg" x="198" y="80" text-anchor="middle">grants mandate</text>
+  <text class="sq-sub" x="198" y="102" text-anchor="middle">UPI PIN &#183; the only human step</text>
+
+  <text class="sq-n" x="26" y="140">2</text>
+  <line x1="302" y1="146" x2="494" y2="146" stroke="#6a3fd4" color="#6a3fd4" stroke-width="1.4" marker-end="url(#ar)"/>
+  <text class="sq-msg" x="398" y="138" text-anchor="middle">card issued, bound to mandate</text>
+  <text class="sq-sub" x="398" y="160" text-anchor="middle">limits and expiry live in the credential</text>
+
+  <text class="sq-n" x="26" y="198">3</text>
+  <path d="M302 192 h34 v30 h-34" stroke="#6a3fd4" color="#6a3fd4" fill="none" stroke-width="1.4" marker-end="url(#ar)"/>
+  <text class="sq-msg" x="348" y="198">discovers, compares, builds the cart</text>
+  <text class="sq-sub" x="348" y="216">local model &#183; no money involved yet</text>
+
+  <text class="sq-n" x="26" y="252">4</text>
+  <path d="M302 246 h34 v30 h-34" stroke="#6a3fd4" color="#6a3fd4" fill="none" stroke-width="1.4" marker-end="url(#ar)"/>
+  <text class="sq-msg" x="348" y="252">signs an intent for the finished cart</text>
+  <text class="sq-sub" x="348" y="270">&#8377;1,240 &#183; 9 items &#183; merchant named</text>
+
+  <text class="sq-n" x="26" y="316">5</text>
+  <line x1="294" y1="322" x2="110" y2="322" stroke="#6a3fd4" color="#6a3fd4" stroke-width="1.4" marker-end="url(#ar)"/>
+  <text class="sq-msg" x="202" y="314" text-anchor="middle">draws &#8377;1,240 against the mandate</text>
+
+  <text class="sq-n" x="26" y="368">6</text>
+  <line x1="102" y1="374" x2="494" y2="374" stroke="#c8442f" color="#c8442f" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text class="sq-msg" x="298" y="366" text-anchor="middle">funds load onto the card</text>
+  <text class="sq-sub" x="298" y="388" text-anchor="middle">UPI rail &#183; mandate consumed here</text>
+
+  <text class="sq-n" x="26" y="414">7</text>
+  <line x1="502" y1="420" x2="694" y2="420" stroke="#c8442f" color="#c8442f" stroke-width="1.8" marker-end="url(#ar)"/>
+  <text class="sq-msg" x="598" y="412" text-anchor="middle">card pays the merchant</text>
+  <text class="sq-sub" x="598" y="434" text-anchor="middle">card rail &#183; Agentic Token + Verifiable Intent</text>
+
+  <text class="sq-n" x="26" y="470">8</text>
+  <line x1="694" y1="476" x2="310" y2="476" stroke="#0a7686" color="#0a7686" stroke-width="1.4" marker-end="url(#ar)"/>
+  <text class="sq-msg" x="502" y="468" text-anchor="middle">order confirmed</text>
+
+  <text class="sq-n" x="26" y="518">9</text>
+  <line x1="494" y1="524" x2="110" y2="524" stroke="#1f7a4d" color="#1f7a4d" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#ar)"/>
+  <text class="sq-msg" x="302" y="516" text-anchor="middle">anything unspent sweeps back</text>
+</svg>
+</div>
+<p>Steps 5 to 7 are the only interval in which the funds belong to neither the owner nor
+the merchant. Every risk the two-leg design introduces lives inside that band.</p>
+
+
 <div class="tw"><table>
 <thead><tr><th></th><th>UPI</th><th>Cards</th></tr></thead>
 <tbody>
