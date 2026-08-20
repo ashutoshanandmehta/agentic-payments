@@ -165,3 +165,26 @@ This decides what the system can actually prove. Everything else follows from it
 - Check whether **Juspay** has published an AP2-to-UPI binding. They are an AP2
   launch partner, Indian, and work on UPI. If they have, part of the novelty is gone.
 - Find any RBI or NPCI statement on the e-mandate exemption question.
+
+## Appendix: the agent virtual card
+
+An alternative design routes the money through a card the agent controls: the user's
+mandate funds the card, and the card pays the merchant. Implemented in `src/vcard.py`
+and measured in `tests/test_vcard.py`.
+
+It is worth stating what the simulation showed, because the result is not obvious from
+the design:
+
+**Putting a credential between the user and the merchant destroys merchant scoping.**
+The mandate can only name the payee it actually pays, and that payee is the card. So a
+mandate scoped to one shop becomes a mandate scoped to one card, and the card is
+unscoped. The test demonstrates a payment reaching a merchant that the same mandate
+refuses when paid directly.
+
+Two further costs: float strands on the card when a spend fails and no reconciliation
+sweep looks there, and the load transaction never names the merchant, so the rails
+cannot link a spend to the load that funded it.
+
+None of this makes the design wrong. It makes the design *expensive*, and the price is
+paid in exactly the property this thesis is about — the ability to say afterwards what
+the user authorised.

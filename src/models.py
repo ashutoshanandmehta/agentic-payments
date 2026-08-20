@@ -82,6 +82,7 @@ class AccountType(str, enum.Enum):
     USER = "USER"                # payer, holds a UPI-linked balance
     MERCHANT = "MERCHANT"        # beneficiary
     SUSPENSE = "SUSPENSE"        # in-flight funds between debit and credit
+    AGENT_CARD = "AGENT_CARD"    # an agent's virtual card: money it controls directly
 
 
 @dataclass

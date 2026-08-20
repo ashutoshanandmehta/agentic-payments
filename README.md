@@ -26,7 +26,39 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 python3 src/cli.py --fresh demo          # the full payment lifecycle, narrated
 python3 tests/test_sim.py                # 44 tests: rails, ledger, recon
 .venv/bin/python tests/test_consent.py   # 16 tests: the order gate
+.venv/bin/python tests/test_vcard.py     # 8 tests: what the virtual-card hop costs
 ```
+
+## Two ways to move the money
+
+**Direct.** One payment, user's bank straight to the merchant, governed by the user's
+mandate. This is `src/orchestrator.py`.
+
+**Via an agent virtual card.** Two payments with a stop in between — the user's money
+loads onto a card the agent controls, then the card pays the merchant. This is
+`src/vcard.py`. It is what an agent-held credential looks like if the credential also
+holds funds.
+
+The second model is implemented so its costs can be measured rather than argued about.
+`tests/test_vcard.py` asserts three of them:
+
+1. **Merchant scoping stops working.** On the load, the payee is the card, not the shop,
+   so the mandate has to name the card. A mandate that says "Brewhouse only" becomes a
+   mandate that says "this card only", and the card can then pay anyone. The test loads
+   against a Brewhouse-scoped mandate and pays CloudHost successfully — while the same
+   payment made directly is refused.
+2. **Float gets stranded.** Load succeeds, spend fails, and ₹499 sits on the card. The
+   reconciliation sweep does not find it, because nothing is stuck mid-transaction. Only
+   a deliberate `vcard.sweep()` returns it.
+3. **The audit chain is severed.** The load and the spend are separate transactions. The
+   load record names the card, never the merchant. The link between them exists only
+   because the application kept it.
+
+Also: mandate headroom is consumed by the *load*, so loading ₹600 for a ₹499 purchase
+burns ₹600 of the user's cap whether or not the purchase happens.
+
+In production this arrangement holds customer funds, which in India needs a PPI or PA
+licence. That is a funding question, not a simulation question.
 
 ## The gap this closes
 
