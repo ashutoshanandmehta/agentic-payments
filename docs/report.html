@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Delegated Payments for Repetitive Purchases</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+:root{
+  --bg:#f4f6f6; --panel:#fff; --ink:#12191c; --soft:#4f5a5e; --faint:#87918f;
+  --line:#dbe1e0; --soft-line:#e9eeed; --teal:#0d6357; --teal-wash:#e2efec;
+  --warn:#8a5a10; --warn-wash:#f8efdd; --bad:#a5382b; --bad-wash:#f8e6e3; --good:#1f7a4d;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#101416; --panel:#181e20; --ink:#e4eaea; --soft:#9aa5a5; --faint:#6d7877;
+  --line:#28302f; --soft-line:#1f2626; --teal:#4fb8a4; --teal-wash:#122622;
+  --warn:#d3a052; --warn-wash:#2a2114; --bad:#e07a6a; --bad-wash:#2b1a18; --good:#5cbb84;
+}}
+:root[data-theme="dark"]{
+  --bg:#101416; --panel:#181e20; --ink:#e4eaea; --soft:#9aa5a5; --faint:#6d7877;
+  --line:#28302f; --soft-line:#1f2626; --teal:#4fb8a4; --teal-wash:#122622;
+  --warn:#d3a052; --warn-wash:#2a2114; --bad:#e07a6a; --bad-wash:#2b1a18; --good:#5cbb84;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Source Serif 4",Georgia,serif;font-size:17px;line-height:1.62}
+.page{max-width:74rem;margin:0 auto;padding:0 1.5rem;display:grid;
+  grid-template-columns:15rem minmax(0,1fr);gap:3rem}
+@media(max-width:900px){.page{grid-template-columns:1fr;gap:0}}
+h1,h2,h3,h4,.eyebrow,.tag,th,nav{font-family:"Instrument Sans",system-ui,sans-serif}
+code,.mono{font-family:"JetBrains Mono",monospace;font-size:.86em}
+
+nav{position:sticky;top:0;align-self:start;padding:2.5rem 0;font-size:.84rem;max-height:100vh;overflow-y:auto}
+@media(max-width:900px){nav{position:static;max-height:none;padding:1.5rem 0 0;
+  border-bottom:1px solid var(--line);margin-bottom:1.5rem}}
+nav b{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.14em;
+  color:var(--faint);margin-bottom:.7rem;font-weight:600}
+nav a{display:block;color:var(--soft);text-decoration:none;padding:.22rem 0;line-height:1.35}
+nav a:hover{color:var(--teal)}
+nav a .k{font-family:"JetBrains Mono",monospace;font-size:.72rem;color:var(--faint);margin-right:.4rem}
+
+main{padding:2.5rem 0 6rem;min-width:0}
+.eyebrow{font-size:.7rem;text-transform:uppercase;letter-spacing:.15em;font-weight:600;color:var(--teal);margin:0}
+h1{font-family:"Instrument Sans",sans-serif;font-size:clamp(1.9rem,4vw,2.6rem);
+  font-weight:700;letter-spacing:-.028em;line-height:1.12;margin:.6rem 0 0;text-wrap:balance}
+.deck{font-size:1.13rem;color:var(--soft);max-width:40rem;margin:.9rem 0 0}
+section{padding-top:2.6rem;scroll-margin-top:1rem}
+h2{font-size:1.35rem;font-weight:700;letter-spacing:-.015em;margin:0 0 .2rem;
+  padding-bottom:.5rem;border-bottom:1px solid var(--line);text-wrap:balance}
+h2 .k{font-family:"JetBrains Mono",monospace;font-size:.8rem;color:var(--faint);margin-right:.6rem;font-weight:400}
+h3{font-size:1.02rem;font-weight:600;margin:1.5rem 0 .35rem}
+h4{font-size:.9rem;font-weight:600;margin:1rem 0 .25rem;color:var(--soft)}
+p{margin:0 0 .85rem;max-width:44rem}
+ul,ol{margin:.3rem 0 .9rem;padding-left:1.2rem;max-width:44rem}
+li{margin-bottom:.35rem}
+strong{font-weight:600}
+
+.tag{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:.63rem;
+  letter-spacing:.06em;padding:.12rem .4rem;border-radius:3px;border:1px solid var(--line);
+  color:var(--faint);vertical-align:.12em;margin-left:.25rem}
+.tag.p{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent)}
+.tag.s{color:var(--soft)}
+.tag.u{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.tag.c{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+
+.callout{border-left:3px solid var(--teal);background:var(--teal-wash);
+  padding:.9rem 1.1rem;border-radius:0 6px 6px 0;margin:1.1rem 0;max-width:44rem}
+.callout.w{border-left-color:var(--warn);background:var(--warn-wash)}
+.callout.b{border-left-color:var(--bad);background:var(--bad-wash)}
+.callout p{margin:0}
+.callout p+p{margin-top:.5rem}
+.callout .lbl{font-family:"Instrument Sans",sans-serif;font-size:.65rem;letter-spacing:.12em;
+  text-transform:uppercase;font-weight:700;color:var(--teal);display:block;margin-bottom:.3rem}
+.callout.w .lbl{color:var(--warn)} .callout.b .lbl{color:var(--bad)}
+
+.tw{overflow-x:auto;margin:1rem 0}
+table{width:100%;border-collapse:collapse;font-size:.9rem;
+  font-family:"Instrument Sans",sans-serif}
+th{text-align:left;font-size:.66rem;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--faint);font-weight:600;padding:0 1rem .5rem 0;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:.55rem 1rem .55rem 0;border-bottom:1px solid var(--soft-line);vertical-align:top}
+td:first-child{font-weight:600;white-space:nowrap}
+.y{color:var(--good);font-weight:600} .n{color:var(--bad);font-weight:600}
+.q{color:var(--warn);font-weight:600}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.8rem;margin:1rem 0}
+.cd{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem}
+.cd h4{margin:0 0 .15rem;color:var(--ink);font-size:.95rem}
+.cd p{font-size:.85rem;color:var(--soft);margin:0;font-family:"Instrument Sans",sans-serif}
+.cd.now{border-left:3px solid var(--good)}
+.cd.soon{border-left:3px solid var(--warn)}
+.cd.later{border-left:3px solid var(--faint);opacity:.8}
+
+.stack{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:1rem 1.2rem;margin:1rem 0;font-family:"JetBrains Mono",monospace;
+  font-size:.82rem;line-height:1.9;overflow-x:auto}
+.stack .l{color:var(--faint)}
+.stack .h{color:var(--teal);font-weight:500}
+</style>
+</head>
+<body>
+<div class="page">
+
+<nav>
+  <b>Contents</b>
+  <a href="#s1"><span class="k">01</span>Summary</a>
+  <a href="#s2"><span class="k">02</span>What we are delegating</a>
+  <a href="#s3"><span class="k">03</span>Pain points</a>
+  <a href="#s4"><span class="k">04</span>Use cases</a>
+  <a href="#s5"><span class="k">05</span>Architecture</a>
+  <a href="#s6"><span class="k">06</span>Tech stack &amp; protocols</a>
+  <a href="#s7"><span class="k">07</span>Core features</a>
+  <a href="#s8"><span class="k">08</span>Payment security</a>
+  <a href="#s9"><span class="k">09</span>Landscape</a>
+  <a href="#s10"><span class="k">10</span>Differentiators</a>
+  <a href="#s11"><span class="k">11</span>Who pays</a>
+  <a href="#s12"><span class="k">12</span>Go to market</a>
+  <a href="#s13"><span class="k">13</span>Revenue model</a>
+  <a href="#s14"><span class="k">14</span>Pine Labs</a>
+  <a href="#s15"><span class="k">15</span>Risks</a>
+</nav>
+
+<main>
+
+<p class="eyebrow">Business &amp; technical report &middot; 20 August 2026</p>
+<h1>Delegated payments for repetitive purchases</h1>
+<p class="deck">Machines that reorder on their own, the check nobody is running before
+they pay, and why the layer above the rail is the durable position.</p>
+
+<div class="callout" style="margin-top:1.5rem">
+  <span class="lbl">How to read the markers</span>
+  <p><span class="tag p">PRIMARY</span> checked at source &middot;
+  <span class="tag s">SECONDARY</span> credible third party, not verified &middot;
+  <span class="tag u">UNVERIFIED</span> believed, not checked &middot;
+  <span class="tag c">CONTESTED</span> sources disagree or it failed a check.</p>
+  <p>Unmarked statements are design argument, not fact claims.</p>
+</div>
+
+<!-- 01 -->
+<section id="s1"><h2><span class="k">01</span>Summary</h2>
+<p>A machine that reorders on its own has to pay for things without anyone watching.
+Every payment rail now shipping for agents checks <strong>how much</strong> it may
+spend. None checks <strong>what it actually bought</strong>.</p>
+<p>That difference has a price. A ₹2,000 mandate happily authorises a ₹600 charge
+against a basket the owner approved at ₹118. Every limit holds, and the customer is
+overcharged by ₹482 with no rule broken and no dispute code to file under.</p>
+<p>We build the check and the receipt: a deterministic test that a payment matches the
+approved order, and one signed record binding the mandate, the order and both payment
+legs. It runs on UPI and on cards, and the device owner picks which funds each agent.</p>
+<div class="callout">
+  <span class="lbl">Position</span>
+  <p>Not a rail, not a wallet, not a registry. The control and evidence layer above
+  whichever rail moves the money — which is also the only position that stays neutral
+  in a dispute.</p>
+</div>
+</section>
+
+<!-- 02 -->
+<section id="s2"><h2><span class="k">02</span>What we are delegating</h2>
+<p><strong>Repetitive purchases.</strong> A machine notices it needs something and
+buys it again — filters, power, reagents, water, consumables. Not one-off shopping and
+not discovery.</p>
+<p>This scope matters because it makes the problem tractable. The owner cannot approve
+each purchase, but they <em>can</em> approve the pattern in advance: this item, this
+much, from these suppliers, this often. That advance approval is the thing a payment
+gets checked against.</p>
+<h3>Where our work starts and stops</h3>
+<p><strong>Starts</strong> when the basket is finished and the agent asks to pay.
+<strong>Stops</strong> when the money has moved and the evidence is recorded.</p>
+<p>Choosing the product, comparing prices and picking the supplier are upstream. They
+are somebody else's problem, and treating them as ours has been the main way this
+project has lost time.</p>
+</section>
+
+<!-- 03 -->
+<section id="s3"><h2><span class="k">03</span>Pain points</h2>
+<p>Four parties are in pain, for different reasons, and only one of them will pay us.</p>
+
+<h3>The device maker — our customer</h3>
+<ul>
+  <li>To let their product transact they need a payment licence, a mandate system,
+    spend controls a customer will trust, and somewhere for disputes to land. In every
+    market they sell into.</li>
+  <li>They will not become a payments company to sell more water filters.</li>
+  <li>Building it once per country is worse than buying it once.</li>
+</ul>
+
+<h3>The owner — our user, not our customer</h3>
+<ul>
+  <li>Will not let a machine spend without visible limits and a way to stop it.</li>
+  <li>Has no recourse when the machine buys wrong. NPCI's UDIR dispute system has reason
+    codes for failed, unauthorised and fraudulent transactions and <strong>none for
+    "the machine bought the wrong thing."</strong> <span class="tag s">SECONDARY</span></li>
+  <li>Cannot see across rails. The UPI block sits in their bank app, the card token in
+    the issuer's app, and the purchase history nowhere.</li>
+</ul>
+
+<h3>The rail and the PSP</h3>
+<ul>
+  <li>UPI has no field for an agent. A ReservePay block authorises <em>a merchant to
+    debit</em>, not <em>an agent to spend</em>. The rail cannot tell an agent debit from
+    any other. <span class="tag p">PRIMARY</span></li>
+  <li>Authentication happens once, at block creation. Every debit after that is
+    unauthenticated by the human. <span class="tag p">PRIMARY</span></li>
+</ul>
+
+<h3>The merchant</h3>
+<ul>
+  <li>As of mid-2026 no card network has published a binding chargeback rule for a
+    dispute an agent started, and the one specification that addresses it in writing
+    <strong>assigns the loss to the merchant</strong>. <span class="tag s">SECONDARY</span></li>
+</ul>
+
+<div class="callout w">
+  <span class="lbl">The pain that pays</span>
+  <p>The owner feels the problem, but the <strong>device maker</strong> carries the
+  cost — in support tickets, refunds, and customers who unplug the feature. That is why
+  the device maker is the buyer even though the owner is the user.</p>
+</div>
+</section>
+
+<!-- 04 -->
+<section id="s4"><h2><span class="k">04</span>Use cases</h2>
+<h3>The filter — all three, or the check is worth nothing</h3>
+<div class="cards">
+  <div class="cd"><h4>The amount varies</h4><p>If it is always ₹499, a spend cap already
+    covers it. We earn our place when the price is not known in advance.</p></div>
+  <div class="cd"><h4>Nobody is watching</h4><p>No screen, no confirmation step. If a
+    human approves each purchase, the human is the check.</p></div>
+  <div class="cd"><h4>Wrong costs real money</h4><p>₹40 is a nuisance. ₹4,000 is a
+    ticket, a refund, and a disabled feature.</p></div>
+</div>
+<p>This rules something out honestly: <strong>fixed-price subscription reorder is not
+our market.</strong> Printer ink at a set rate has nothing to check. We want machines
+that choose.</p>
+
+<h3>Live in India today</h3>
+<div class="cards">
+  <div class="cd now"><h4>EV charging</h4><p>Price varies by station and time. Already an
+    eligible ReservePay category — NPCI built the primitive for this shape.</p></div>
+  <div class="cd now"><h4>Battery swapping</h4><p>Two- and three-wheeler networks. High
+    frequency, small tickets, the driver never handles payment.</p></div>
+  <div class="cd now"><h4>Water tanker delivery</h4><p>Tank runs low, several suppliers,
+    prices move daily, nobody is home. A near-perfect fit for the filter.</p></div>
+  <div class="cd now"><h4>Diagnostic analysers</h4><p>Reagents and consumables. High
+    value, recurring, and a wrong order stops a lab.</p></div>
+</div>
+
+<h3>Near term — the machine exists, the payment does not</h3>
+<div class="cards">
+  <div class="cd soon"><h4>Water purifiers</h4><p>Cartridges on usage, not a calendar.</p></div>
+  <div class="cd soon"><h4>Vending &amp; micro-markets</h4><p>The machine reorders its own stock.</p></div>
+  <div class="cd soon"><h4>Fleet fuel &amp; tolls</h4><p>Vehicles buying against a fleet mandate.</p></div>
+  <div class="cd soon"><h4>Industrial consumables</h4><p>Tooling and spares off telemetry.</p></div>
+  <div class="cd soon"><h4>LPG &amp; DG fuel</h4><p>Refill booked before the cylinder empties.</p></div>
+  <div class="cd soon"><h4>Agri IoT</h4><p>Inputs ordered at the right window.</p></div>
+</div>
+
+<h3>Flagship story, install base not here</h3>
+<div class="cards">
+  <div class="cd later"><h4>Smart fridges</h4><p>Groceries on stock level.</p></div>
+  <div class="cd later"><h4>Voice assistants</h4><p>Household reorder on request.</p></div>
+  <div class="cd later"><h4>Washing machines</h4><p>Detergent by cycle count.</p></div>
+</div>
+<p><span class="tag u">UNVERIFIED</span> No segment sizing here. We have not done it,
+and a number we cannot defend is worse than no number.</p>
+</section>
+
+<!-- 05 -->
+<section id="s5"><h2><span class="k">05</span>Architecture</h2>
+<p>Two funding rails, offered together. The owner picks per agent. The control layer is
+identical either way.</p>
+<div class="tw"><table>
+<thead><tr><th></th><th>UPI</th><th>Cards</th></tr></thead>
+<tbody>
+<tr><td>Model</td><td>Pre-funded</td><td>Post-paid, token-routed</td></tr>
+<tr><td>Primitive</td><td>ReservePay block (SBMD)</td><td>Agentic Token via MDES</td></tr>
+<tr><td>Money rests</td><td class="q">briefly, on the agent's card</td><td class="y">never</td></tr>
+<tr><td>Agent identity</td><td class="n">not in the rail</td><td class="y">in the token</td></tr>
+<tr><td>Merchant scope</td><td class="n">we enforce it</td><td class="y">network enforces it</td></tr>
+<tr><td>Disputes</td><td class="n">no code for wrong purchase</td><td class="y">120-day chargeback</td></tr>
+<tr><td>Cost</td><td class="y">zero MDR</td><td class="q">~2%</td></tr>
+<tr><td>Licence for us</td><td class="n">PPI, or PA at ₹15 cr</td><td class="y">none — we hold no funds</td></tr>
+</tbody></table></div>
+
+<div class="callout">
+  <span class="lbl">The asymmetry that defines the product</span>
+  <p>On UPI we supply three things — agent identity, scope enforcement, and the order
+  check. On cards the network already supplies the first two.</p>
+  <p><strong>The order check is the constant, and it is the only one nobody has on
+  either rail.</strong></p>
+</div>
+</section>
+
+<!-- 06 -->
+<section id="s6"><h2><span class="k">06</span>Tech stack &amp; protocols</h2>
+<div class="stack"><span class="l">owner app        </span>web + mobile · passkey auth · <span class="h">three-action revoke</span>
+<span class="l">control layer    </span>Python · <span class="h">deterministic order check</span> · Ed25519 · canonical JSON
+<span class="l">evidence         </span>double-entry ledger · append-only event log · <span class="h">cross-rail receipt</span>
+<span class="l">UPI path         </span>PSP API → ReservePay / SBMD · UMN lifecycle · UDIR for disputes
+<span class="l">card path        </span>MDES Agentic Token · Verifiable Intent · issuer + acquirer enablement
+<span class="l">transport        </span>HTTP 402 challenge–response (P3P · MPP · x402 all converge here)
+<span class="l">agent side       </span>local model · MCP for tools · signs its own intent
+<span class="l">store            </span>Postgres · integer paise only, never floats</div>
+
+<h3>Protocols we adopt rather than invent</h3>
+<ul>
+  <li><strong>HTTP 402 challenge–response.</strong> P3P, Stripe/Tempo's MPP and
+    Coinbase's x402 all use it. Speaking it costs nothing and buys compatibility.
+    <span class="tag s">SECONDARY</span></li>
+  <li><strong>AP2 mandate shape.</strong> Google's Agent Payments Protocol defines
+    Intent and Cart mandates as signed credentials. We follow the shape; the encoding
+    can be plain signed JSON until it needs not to be.</li>
+  <li><strong>Mastercard Verifiable Intent.</strong> Open-sourced March 2026. Ties a
+    card authorisation to the human mandate behind it. We carry it on the card leg
+    rather than reinventing it. <span class="tag s">SECONDARY</span></li>
+  <li><strong>MCP</strong> on the agent side for tool access. Not a payment protocol
+    and not treated as one.</li>
+</ul>
+<div class="callout w">
+  <span class="lbl">What we deliberately do not build</span>
+  <p>A payment protocol. A rail. A wallet. A token standard. Every one of those has an
+  incumbent with a network, and none of them is the missing piece.</p>
+</div>
+</section>
+
+<!-- 07 -->
+<section id="s7"><h2><span class="k">07</span>Core features</h2>
+<h3>1. Agent identity and enrolment</h3>
+<p>Each agent gets a cryptographic identity chained to a verified owner and to the
+device it runs on. One device, many agents; one owner, many devices. Killing one agent
+never touches the others.</p>
+
+<h3>2. Authority creation, per rail</h3>
+<p>Per-purchase cap, period cap, category scope, expiry. Written to a ReservePay block
+on UPI or an Agentic Token on cards, from one interface.</p>
+
+<h3>3. The order check <span class="tag" style="border-color:var(--teal);color:var(--teal)">the differentiator</span></h3>
+<p>Before money moves, two deterministic tests. Does the payment still match the order —
+amount, payee, freshness, internal consistency. Does the order fit inside the authority —
+cap, category, period, count, window.</p>
+<p>Arithmetic only. <strong>No model in the approval path</strong>, because a bank
+cannot refuse a payment on a probability; it needs a reason it can put in a dispute file.</p>
+
+<h3>4. The cross-rail receipt</h3>
+<p>One signed record naming the mandate, the order, the UPI leg and the card leg, with
+the amount matching across all of them or the record is invalid. Neither rail keeps this
+link. It is what turns a dispute from an argument into a lookup.</p>
+
+<h3>5. Owner console</h3>
+<p>Purchases first, each with the agent's signed order beside it. Limits underneath. One
+revoke button that fans out to three actions and reports each: kill the card token, stop
+future funding, return anything already sitting on the card.</p>
+
+<h3>6. Reconciliation and refund</h3>
+<p>Three outcomes, not two. Definitely failed, refund now. Definitely succeeded, nothing
+to do. <strong>Unknown, reconcile — never refund on a timeout</strong>, or you pay twice.</p>
+<p>Refunds release the mandate headroom they consumed. Without that, a run of failures
+silently exhausts the owner's monthly cap while their balance looks fine.</p>
+</section>
+
+<!-- 08 -->
+<section id="s8"><h2><span class="k">08</span>Payment security</h2>
+<h3>The principle</h3>
+<p><strong>Enforcement lives at the credential, not inside the agent.</strong> If an
+agent is prompt-injected, the limit does not move — because the limit was never in the
+agent's custody.</p>
+
+<h3>Controls</h3>
+<ul>
+  <li><strong>Fail closed.</strong> Unverifiable signature, unreadable payload,
+    mismatched reference — all refuse. A checker that approves when confused is worse
+    than none, because it launders a failure into an approval.</li>
+  <li><strong>Ed25519 signatures</strong> over canonically serialised records, so
+    tampering after signing is detectable. Deliberately not a shared secret: if the
+    owner and the agent shared one, the agent could forge the owner's consent.</li>
+  <li><strong>Integer paise everywhere.</strong> No float touches a comparison. A
+    payments system that rounds can be gamed by rounding.</li>
+  <li><strong>Replay protection</strong> on payment references, so a retried request is
+    not a second debit.</li>
+  <li><strong>Float minimisation.</strong> Load the exact basket total, pay immediately,
+    sweep on failure. On the card path there is no float at all.</li>
+  <li><strong>Revocation fan-out</strong> across both rails plus the float, each step
+    reported. A revoke that half worked is worse than one that failed loudly.</li>
+  <li><strong>Signed, timestamped revocation record.</strong> A payment landing one
+    minute after a revoke is a liability question, and without a record it is our log
+    against the merchant's.</li>
+</ul>
+
+<div class="callout b">
+  <span class="lbl">What we do not claim</span>
+  <p><strong>We do not prevent prompt injection.</strong> It is an unsolved research
+  problem and anyone selling prevention is overselling. What we do is make injection
+  <em>unprofitable</em>: an injected agent still cannot produce a payment that matches
+  an order the owner approved.</p>
+  <p>We describe injection handling as risk scoring, never as prevention. That
+  distinction is worth holding in front of a security-literate room.</p>
+</div>
+</section>
+
+<!-- 09 -->
+<section id="s9"><h2><span class="k">09</span>Landscape</h2>
+<p>Most of these are not competitors. Saying so accurately is more useful than
+pretending otherwise.</p>
+<div class="tw"><table>
+<thead><tr><th>Who</th><th>What they do</th><th>Relationship</th></tr></thead>
+<tbody>
+<tr><td>P3P / Pine Labs</td><td>Agentic payments on UPI ReservePay. Grantex adds agent
+  identity, limits, audit. Live with Gullak. <span class="tag s">SECONDARY</span></td>
+  <td class="y">Rail we ride. Partner.</td></tr>
+<tr><td>Mastercard Agent Pay</td><td>Agentic Tokens with network-enforced scope, plus
+  Verifiable Intent. <span class="tag s">SECONDARY</span></td>
+  <td class="y">Infrastructure we ride.</td></tr>
+<tr><td>Visa Trusted Agent</td><td>Agent legitimacy at the network.</td>
+  <td class="y">Same.</td></tr>
+<tr><td>MPP · x402</td><td>Machine-to-machine payment for APIs over HTTP 402.</td>
+  <td class="q">Adjacent. Different problem — paying for a resource, not for goods.</td></tr>
+<tr><td>Agent wallet startups</td><td>Credentials and spend caps for agents.</td>
+  <td class="q">Closest overlap. None binds the payment to an approved order.</td></tr>
+<tr><td>NPCI UAP</td><td>A delegation primitive admitting non-human payers.</td>
+  <td class="q">Not shipped. If it lands, our UPI scaffolding shrinks and the order
+  check is unaffected.</td></tr>
+</tbody></table></div>
+
+<div class="callout">
+  <span class="lbl">The structural argument</span>
+  <p>A rail that adjudicates disputes about its own payments is a party to those
+  disputes. If P3P also decides whether the basket was right, Pine Labs is judging Pine
+  Labs.</p>
+  <p>Card networks are not merchants for the same reason. Neutrality is not a marketing
+  claim here, it is the reason the evidence is worth anything.</p>
+</div>
+</section>
+
+<!-- 10 -->
+<section id="s10"><h2><span class="k">10</span>Differentiators</h2>
+<h3>One that is technical</h3>
+<p>The order check. Everyone checks the limit; nobody checks the purchase. It runs in
+30 seconds as a demo: ₹2,000 mandate, ₹118 basket, ₹600 charge — allowed by everything
+shipping today, refused by us.</p>
+
+<h3>One that is structural</h3>
+<p>We are the only party that can be neutral, because we never move the money.</p>
+
+<h3>One that is architectural</h3>
+<p>Both rails, one layer. The gap is different on UPI and on cards, and a rail company
+cannot fill both because it owns one.</p>
+
+<h3>One that is earned</h3>
+<p>Four things we found by building it, none of which is written down anywhere else:</p>
+<ol>
+  <li><strong>Signatures do not stop overcharging.</strong> Agent-signs, merchant-signs
+    and both-sign all approve a self-consistent inflated basket. A signature proves who
+    wrote a record, not that it is true.</li>
+  <li><strong>Routing through an agent's card destroys merchant scoping.</strong> The
+    mandate can only name the card, so "this shop only" silently becomes "anywhere".</li>
+  <li><strong>A failed, refunded purchase eats the cap permanently</strong> unless
+    headroom is explicitly released. The owner is whole in cash and short on authority.</li>
+  <li><strong>Revoking is three actions.</strong> Everyone implements one.</li>
+</ol>
+<p>69 tests across rails, ledger, reconciliation and the order check. Anyone can claim
+to be building a control layer; this is what running one looks like.</p>
+</section>
+
+<!-- 11 -->
+<section id="s11"><h2><span class="k">11</span>Who pays</h2>
+<div class="tw"><table>
+<thead><tr><th>Buyer</th><th>Why they pay</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td>Device maker / OEM</td><td>Their product cannot transact without this, and they
+  will not get a licence to build it.</td><td class="y">Primary</td></tr>
+<tr><td>Agent platform</td><td>One integration covers every downstream customer.</td>
+  <td class="q">Scale channel, later</td></tr>
+<tr><td>PSP / PA</td><td>White-label the check so their agentic product is safer to
+  sell and cheaper to dispute.</td><td class="q">Strategic</td></tr>
+<tr><td>The owner</td><td>—</td><td class="n">Never. Consumers do not pay for safety
+  rails; they refuse products that lack them.</td></tr>
+</tbody></table></div>
+<p><strong>The buyer and the user are different people.</strong> The owner feels the
+problem; the device maker carries the cost. Everything about pricing and GTM follows
+from that split.</p>
+</section>
+
+<!-- 12 -->
+<section id="s12"><h2><span class="k">12</span>Go to market</h2>
+<h3>Sequence</h3>
+<ol>
+  <li><strong>One pilot in a live-today segment.</strong> An EV charging operator, a
+    water-tanker aggregator, a diagnostics company. One integration proves the thesis
+    end to end.</li>
+  <li><strong>Confirm the no-licence path in writing</strong> with a PSP or sponsor
+    bank. This is a milestone, not an assumption.</li>
+  <li><strong>Publish the threat model and the four findings.</strong> The standards
+    conversation is open now and will not be in a year.</li>
+  <li><strong>Then the platform channel.</strong> One integration, many customers — but
+    a platform buys a threat model and incident data, so it has to be earned with direct
+    customers first.</li>
+</ol>
+
+<h3>Entry motion</h3>
+<p>Enter through the engineer who deployed the agents and feels the risk first. Get
+signed by the finance or product owner who carries the loss. Expect the security lead as
+the gate, and bring the threat model rather than the demo.</p>
+
+<h3>Trigger events worth hunting</h3>
+<p>An incident. A statutory audit. A pre-launch review. A bank asking "what controls do
+you have?" These convert far better than cold outbound, because the budget already
+exists that week.</p>
+
+<div class="callout w">
+  <span class="lbl">The honest obstacle</span>
+  <p>This category has no budget line. We do not create one — we borrow an existing one:
+  fraud and risk, or audit and compliance, or product warranty. Same money, already
+  approved, new problem.</p>
+</div>
+</section>
+
+<!-- 13 -->
+<section id="s13"><h2><span class="k">13</span>Revenue model</h2>
+<div class="callout w">
+  <span class="lbl">Status</span>
+  <p><span class="tag u">UNVERIFIED</span> These are structures with illustrative
+  numbers, derived and not validated. Testing them is a 90-day goal, and saying so in
+  the room is stronger than defending a figure we made up.</p>
+</div>
+
+<h3>Why not interchange</h3>
+<p>UPI is zero-MDR, so there is no interchange to share on the UPI leg. We cannot be an
+interchange business in India. We price as software, and treat card interchange as
+upside rather than foundation.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Line</th><th>Structure</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Platform fee</td><td>Per active agent, per month</td><td>Grows as the OEM ships
+  more devices. The metric we manage is agents under mandate.</td></tr>
+<tr><td>Decision fee</td><td>Per authorisation evaluated</td><td>Rail-independent, so it
+  survives whichever way the owner funds the agent.</td></tr>
+<tr><td>Integration</td><td>One-time, per OEM</td><td>Covers enablement work and
+  qualifies serious buyers.</td></tr>
+<tr><td>Enterprise licence</td><td>Annual, to PSPs and banks</td><td>White-label the
+  check inside their own agentic product.</td></tr>
+<tr><td>Interchange share</td><td>Card legs only</td><td>Upside. Never the foundation.</td></tr>
+</tbody></table></div>
+
+<h3>How to defend the price</h3>
+<p>Price against the loss, not the software. The comparison that lands is cost as a
+fraction of the spend under control, set beside card interchange at 150–200 basis
+points. One prevented incident should cover many months of fee.</p>
+</section>
+
+<!-- 14 -->
+<section id="s14"><h2><span class="k">14</span>Pine Labs, and how the programme helps</h2>
+<p><strong>The programme.</strong> Fintech Spark, run through SIIC at IIT Kanpur and
+funded by Pine Labs, with a ten-day industry immersion in Pune. Pine Labs is therefore
+both the funder evaluating us and the incumbent whose product overlaps ours. Both facts
+matter in the room, and they pull in opposite directions.</p>
+
+<h3>What Pine Labs has built</h3>
+<ul>
+  <li><strong>P3P</strong>, launched 11 June 2026 — agentic payments on UPI ReservePay
+    and One Time Mandate, over HTTP 402. Live with Gullak; Vijay Sales in proof of
+    concept. <span class="tag s">SECONDARY</span></li>
+  <li><strong>Grantex</strong> — the identity and delegation layer: agent identity,
+    spend limits, audit trail. Their framing is "no guardrails, no
+    payment." <span class="tag s">SECONDARY</span></li>
+  <li>Pine Labs acquired <strong>Setu</strong> in 2022, so the UPI API layer sits inside
+    the same company. <span class="tag s">SECONDARY</span></li>
+</ul>
+
+<div class="callout">
+  <span class="lbl">The fact this whole section turns on</span>
+  <p>Amrish Rau has publicly said Pine Labs is <strong>in discussions with card networks
+  to extend P3P beyond UPI</strong>. <span class="tag s">SECONDARY</span></p>
+  <p>That is precisely the two-rail problem we have spent this project designing. We are
+  not arriving with a solution looking for a problem — we are arriving with work on a
+  problem their CEO has said out loud that they have.</p>
+</div>
+
+<h3>How to position in their room</h3>
+<p><strong>Do not position against P3P.</strong> It is their product, it shipped first,
+and it works. Position as the layer that makes it worth more:</p>
+<ul>
+  <li><strong>The check P3P does not run.</strong> Grantex verifies the agent and its
+    limits. Nothing verifies the basket. Our demo shows a ₹600 charge passing every
+    control against a ₹118 approved basket.</li>
+  <li><strong>The card bridge they are already seeking.</strong> Our design carries a
+    single control layer across UPI and cards, which is the extension they have said
+    they are working towards.</li>
+  <li><strong>Neutrality they structurally cannot have.</strong> A rail that judges
+    disputes about its own payments is a party to them. We never move money, so our
+    record is worth more in a dispute than one either side wrote.</li>
+  <li><strong>Distribution.</strong> Their merchant and device relationships are the
+    channel we would otherwise spend two years building.</li>
+</ul>
+
+<h3>Use the home advantage</h3>
+<p>SIIC is our own institute's incubator and the research sits under a named supervisor
+at IIT Kanpur. That buys a hearing for depth that a pure pitch would not get — so lead
+with the four findings rather than the market story. In this specific room, <strong>rigour
+is the differentiator that is cheapest for us to prove and hardest for anyone to
+fake.</strong></p>
+
+<h3>What to ask for</h3>
+<ol>
+  <li>Sandbox access to P3P and the Grantex APIs.</li>
+  <li>A straight answer on whether P3P binds a payment to an approved order. This is
+    the single question that decides whether our wedge is wide or narrow.</li>
+  <li>One introduction to a device maker in their portfolio.</li>
+  <li>A hard technical review of our threat model before we publish it.</li>
+</ol>
+
+<div class="callout w">
+  <span class="lbl">Risk to hold in mind</span>
+  <p>The clearest way to explain our value is to describe a gap in their product. Frame
+  it as <em>the piece that makes P3P safe enough for regulated device categories</em>,
+  not as a shortcoming. And separately: a corporate programme sponsored by the incumbent
+  is a channel and a signal, not neutral capital.</p>
+  <p>Also worth knowing: <strong>White Venture Capital</strong>, a $40M fund from Pine
+  Labs' founder Amrish Rau and Jupiter's Jitendra Gupta, writes $250K–$1M seed and
+  Series A cheques into Indian and Southeast Asian fintech. <span class="tag s">SECONDARY</span></p>
+</div>
+</section>
+
+<!-- 15 -->
+<section id="s15"><h2><span class="k">15</span>Risks and open questions</h2>
+<div class="tw"><table>
+<thead><tr><th>Risk</th><th>Status</th><th>How it resolves</th></tr></thead>
+<tbody>
+<tr><td>P3P already does this</td><td class="q"><span class="tag u">UNVERIFIED</span></td>
+  <td>Public docs stop at the quickstart. Read the SDK or ask them directly. <strong>Highest
+  priority — it decides the size of the wedge.</strong></td></tr>
+<tr><td>Agent debits may be non-compliant</td><td class="q"><span class="tag c">CONTESTED</span></td>
+  <td>Whether ReservePay agent debits sit inside RBI's e-mandate exemption is unresolved.
+  If they do not, every agent payment on UPI today carries full issuer liability.</td></tr>
+<tr><td>Agent dispute liability unassigned</td><td class="q"><span class="tag s">SECONDARY</span></td>
+  <td>No network has published a binding chargeback rule for agent-initiated disputes.
+  The recourse our card path relies on is real but untested.</td></tr>
+<tr><td>Card path needs enablement</td><td class="q"><span class="tag s">SECONDARY</span></td>
+  <td>Agent Pay requires issuer, acquirer and network provisioning. No sandbox. A
+  partnership problem, not a capital one — but slow.</td></tr>
+<tr><td>UPI path needs capital</td><td class="n">Structural</td>
+  <td>Holding float needs a PPI licence; direct redistribution needs a PA licence at
+  ₹15 crore net worth. Does not go away with cleverness.</td></tr>
+<tr><td>Appliance market absent</td><td class="q">Known</td>
+  <td>Smart appliance install base in India is near zero. Handled by leading with
+  segments where machines already transact.</td></tr>
+</tbody></table></div>
+
+<h3>Verify before this is used again</h3>
+<ol>
+  <li>The programme's actual name and what it offers.</li>
+  <li>Whether P3P binds payments to an approved order.</li>
+  <li><strong>NPCI OC 228</strong> section by section — their site blocks automated fetching.</li>
+  <li>Whether Juspay has published an AP2-to-UPI binding.</li>
+  <li>Any RBI or NPCI statement on the e-mandate exemption question.</li>
+</ol>
+</section>
+
+</main>
+</div>
+</body>
+</html>
