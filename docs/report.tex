@@ -1,0 +1,469 @@
+%==============================================================================
+%  Delegated Payments for Repetitive Purchases
+%  Single-column IEEE style.
+%
+%  Compile:  pdflatex report.tex   (twice, for cross-references)
+%
+%  Rupee sign: pdflatex has no glyph for U+20B9, so \rs prints "Rs." If you
+%  compile with XeLaTeX or LuaLaTeX and a font that has it, redefine \rs as
+%  \newcommand{\rs}{\textrupee\,} and load fontspec.
+%==============================================================================
+\documentclass[journal,onecolumn,11pt]{IEEEtran}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{a4paper,margin=1in}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\rs}{Rs.\,}
+
+% Confidence markers, per the project's evidence discipline.
+\newcommand{\primary}{{\footnotesize\textsc{\textcolor{teal!70!black}{[primary]}}}}
+\newcommand{\secondary}{{\footnotesize\textsc{\textcolor{gray!80!black}{[secondary]}}}}
+\newcommand{\unver}{{\footnotesize\textsc{\textcolor{orange!80!black}{[unverified]}}}}
+\newcommand{\contested}{{\footnotesize\textsc{\textcolor{red!70!black}{[contested]}}}}
+
+\begin{document}
+
+\title{Delegated Payments for Repetitive Purchases:\\
+A Control and Evidence Layer for Machine-Initiated Transactions}
+
+\author{Ashutosh Anand\\
+\textit{Indian Institute of Technology Kanpur}\\
+Supervisor: Prof.\ Vimal Kumar\\
+\texttt{support@adsys.in}}
+
+\markboth{Technical and Business Report}{Anand: Delegated Payments for Repetitive Purchases}
+\maketitle
+
+\begin{abstract}
+Machines that reorder consumables on their own must pay without a human present.
+Every payment rail now shipping for autonomous agents enforces \emph{how much} an
+agent may spend; none verifies \emph{what it actually bought}. We show that this
+distinction is not academic: under a \rs 2{,}000 mandate, a \rs 600 charge against
+a basket the owner approved at \rs 118 passes every control in production today,
+violating no rule and mapping to no dispute code. We describe a control and
+evidence layer that sits above the rail rather than replacing it, comprising a
+deterministic order check executed before settlement and a cross-rail receipt
+binding the mandate, the approved order and both payment legs. The layer is
+implemented over two rails with materially different properties---UPI ReservePay,
+which is pre-funded and carries no agent identity, and card Agentic Tokens, which
+are post-paid and network-scoped---and we report four empirical findings from that
+implementation, including the result that cryptographic signatures on an order do
+not prevent overcharging under any signer arrangement. We conclude with the
+commercial position implied by the architecture.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Agentic payments, delegated authorisation, UPI, Unified Payments Interface,
+ReservePay, agentic tokens, payment mandates, dispute evidence, machine commerce.
+\end{IEEEkeywords}
+
+\section{Introduction}
+\IEEEPARstart{T}{he} rails for agent-initiated payment arrived during 2026. Mastercard
+open-sourced Verifiable Intent in March~\cite{mc-vi}, establishing cryptographic proof
+that a human authorised an agent. Pine Labs launched P3P in June~\cite{p3p}, enabling
+agents to complete UPI payments after a single upfront approval. Google's AP2~\cite{ap2},
+Stripe and Tempo's MPP~\cite{mpp} and Coinbase's x402~\cite{x402} all converge on the
+same HTTP~402 challenge--response pattern.
+
+Each of these answers the question \emph{may this agent spend?} None answers
+\emph{did this agent buy what it was told to buy?}
+
+That gap is the subject of this report. Section~\ref{sec:scope} defines the scope
+narrowly---repetitive purchases by machines, beginning at the moment of payment.
+Sections~\ref{sec:pain}--\ref{sec:arch} state the problem and the architecture.
+Sections~\ref{sec:stack}--\ref{sec:sec} cover implementation and security.
+Sections~\ref{sec:related}--\ref{sec:risk} address positioning, commercial model and
+open risks.
+
+\section{Scope}\label{sec:scope}
+This work concerns \textbf{repetitive purchases}: a machine detects that it needs
+something and buys it again. Filters, electricity, reagents, water, consumables. It is
+not concerned with discovery, price comparison or supplier selection.
+
+The restriction is what makes the problem tractable. An owner cannot approve each
+purchase, but can approve the \emph{pattern} in advance---this item, up to this much,
+from these suppliers, this often. That advance approval is the object against which a
+payment is subsequently checked.
+
+Accordingly, the work begins when the basket is complete and the agent requests
+payment, and ends when the money has moved and the evidence is recorded.
+
+\section{Problem}\label{sec:pain}
+
+\subsection{The device manufacturer}
+To let a product transact, a manufacturer requires a payment licence, a mandate
+system, spend controls a customer will trust, and a dispute path---in every market it
+sells into. Manufacturers will not become payment companies in order to sell water
+filters. This is the party that will pay for a solution.
+
+\subsection{The owner}
+The owner will not permit a machine to spend without visible limits and a means of
+revocation. More seriously, the owner has no recourse when the machine buys the wrong
+thing: NPCI's UDIR dispute system carries reason codes for failed, unauthorised and
+fraudulent transactions, and \textbf{none for an agent's mistake}~\secondary.
+
+The owner also cannot see across rails. A UPI block is visible in the bank
+application; a card token in the issuer's; the purchase history in neither.
+
+\subsection{The rail}
+UPI has no field for an agent. A ReservePay block authorises \emph{a merchant to
+debit}, not \emph{an agent to spend}, and the rail cannot distinguish an
+agent-initiated debit from any other~\primary. Authentication occurs once, at block
+creation; every subsequent debit is unauthenticated by the human~\primary. The
+framework is set out in NPCI Operating Circular~228~\cite{npci-228}.
+
+\subsection{The merchant}
+As of mid-2026 no card network has published a binding chargeback rule for a dispute
+initiated by an agent, and the one specification that addresses the question in writing
+assigns the loss to the merchant~\secondary.
+
+\section{Use Cases}\label{sec:use}
+
+\subsection{Selection criteria}
+A deployment is a candidate only if all three conditions hold.
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{The amount varies.} If the machine always pays \rs 499, a spend cap
+already suffices. The check earns its place only where price is not known in advance.
+\item \textbf{No human is present.} If a person confirms each purchase, the person is
+the check.
+\item \textbf{Error is expensive.} A \rs 40 mistake is a nuisance; a \rs 4{,}000
+mistake is a support ticket, a refund, and a disabled feature.
+\end{enumerate}
+
+This criterion excludes fixed-price subscription reorder, where nothing varies and
+therefore nothing requires checking.
+
+\subsection{Segments}
+Table~\ref{tab:seg} groups candidate deployments by whether the machine already
+transacts in India.
+
+\begin{table}[t]
+\centering
+\caption{Candidate deployments by present-day maturity in India}
+\label{tab:seg}
+\begin{tabular}{@{}p{0.24\linewidth}p{0.70\linewidth}@{}}
+\toprule
+\textbf{Segment} & \textbf{Characteristics} \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Transacting today}}\\
+EV charging & Price varies by station and time; already an eligible ReservePay merchant category~\secondary \\
+Battery swapping & Two- and three-wheeler networks; high frequency, small tickets \\
+Water tanker delivery & Several suppliers, prices move daily, owner typically absent \\
+Diagnostic analysers & Reagents and consumables; high value, a wrong order halts a laboratory \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Machine deployed, payment not automated}}\\
+Water purifiers & Cartridge replacement by usage rather than calendar \\
+Vending, micro-markets & Machine reorders its own stock \\
+Fleet fuel and tolls & Vehicles transacting against a fleet mandate \\
+Industrial consumables & Tooling and spares ordered from telemetry \\
+LPG and generator fuel & Refill booked before exhaustion \\
+Agricultural IoT & Inputs ordered within an agronomic window \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Installed base not yet present}}\\
+Smart refrigerators & Groceries by stock level \\
+Voice assistants & Household reorder on request \\
+Washing machines & Detergent by cycle count \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Segment sizing has not been performed and no figures are offered~\unver.
+
+\section{Architecture}\label{sec:arch}
+Two funding rails are offered concurrently; the owner selects one per agent. The
+control layer is identical in both cases. Their properties differ substantially
+(Table~\ref{tab:rails}).
+
+\begin{table}[t]
+\centering
+\caption{Comparison of the two funding rails}
+\label{tab:rails}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Property} & \textbf{UPI} & \textbf{Cards} \\
+\midrule
+Funding model      & Pre-funded              & Post-paid, token-routed \\
+Primitive          & ReservePay block (SBMD) & Agentic Token via MDES \\
+Money at rest      & Briefly, on agent card  & Never \\
+Agent identity     & Absent from the rail    & Carried in the token \\
+Merchant scope     & Enforced by us          & Enforced by the network \\
+Dispute path       & No code for wrong purchase & 120-day chargeback \\
+Transaction cost   & Zero MDR                & Approximately 2\% \\
+Licence implication & PPI, or PA at \rs 15\,cr & None; no funds held \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The defining asymmetry}
+On UPI, three components must be supplied: agent identity, scope enforcement, and the
+order check. On cards, the network already supplies the first two.
+
+\textbf{The order check is the invariant, and it is the only component absent from
+both rails.} This observation determines the product boundary: everything else is
+rail-specific scaffolding.
+
+\section{Implementation}\label{sec:stack}
+
+\subsection{Protocols adopted}
+No new payment protocol is proposed. The following are consumed as given.
+
+\begin{itemize}[leftmargin=*]
+\item \textbf{HTTP 402 challenge--response}, common to P3P, MPP and x402~\cite{p3p,mpp,x402}.
+\item \textbf{AP2 mandate structure}~\cite{ap2}: signed Intent and Cart records. The
+shape is followed; the encoding remains plain signed JSON until interoperability
+requires otherwise.
+\item \textbf{Mastercard Verifiable Intent}~\cite{mc-vi} on the card leg, binding an
+authorisation to the human mandate behind it.
+\item \textbf{Model Context Protocol} on the agent side for tool access. It is not a
+payment protocol and is not treated as one.
+\end{itemize}
+
+\subsection{Stack}
+The control layer is implemented in Python with a double-entry ledger in which all
+postings must sum to zero, an append-only event log, Ed25519 signatures over
+canonically serialised records, and monetary values represented exclusively as integer
+paise. Owner-facing control is a web application authenticated by passkey.
+
+\section{Core Features}\label{sec:feat}
+
+\subsection{Agent identity and enrolment}
+Each agent receives a cryptographic identity chained to a verified owner and to its
+host device. One device may host several agents; revoking one does not affect others.
+
+\subsection{The order check}
+Two deterministic tests execute before settlement.
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Does the payment still match the order?} Amount, payee, freshness, and
+internal consistency between line items and stated total.
+\item \textbf{Does the order fall within the authority?} Per-payment ceiling, category,
+period budget, execution count, validity window.
+\end{enumerate}
+
+Both are arithmetic. \textbf{No statistical model participates in the approval path},
+because an issuer cannot decline a payment on a probability; it requires a reason
+admissible in a dispute file.
+
+\subsection{The cross-rail receipt}
+A single signed record naming the mandate, the order, the UPI leg and the card leg,
+with the amount required to agree across all four. Neither rail retains this
+association. It converts a dispute from an argument into a lookup.
+
+\subsection{Reconciliation and refund}
+Three outcomes are distinguished, not two. Where the merchant leg definitively failed,
+refund immediately. Where it definitively succeeded, no action. \textbf{Where the
+outcome is unknown, reconcile}---never refund on a timeout, or the payment is made
+twice.
+
+Refunds must release the mandate headroom they consumed. Absent this, a sequence of
+failures silently exhausts the owner's periodic cap while their cash balance appears
+correct.
+
+\section{Payment Security}\label{sec:sec}
+
+\subsection{Principle}
+Enforcement resides in the credential, not inside the agent. A prompt-injected agent
+cannot move its own limit, because the limit was never in its custody.
+
+\subsection{Controls}
+\begin{itemize}[leftmargin=*]
+\item \textbf{Fail-closed evaluation.} An unverifiable signature, unparseable payload
+or mismatched reference all deny. An evaluator that approves when confused converts a
+failure into an approval.
+\item \textbf{Ed25519 over canonical serialisation.} Deliberately asymmetric: a shared
+secret would allow the agent to forge the owner's consent.
+\item \textbf{Integer arithmetic throughout.} A payment system that rounds can be
+gamed by rounding.
+\item \textbf{Replay protection} on payment references, so a retry is not a second debit.
+\item \textbf{Float minimisation.} Load the exact basket total, settle immediately,
+sweep on failure. The card path holds no float at all.
+\item \textbf{Revocation fan-out} across both rails and any resting float, with each
+step reported independently.
+\end{itemize}
+
+\subsection{Limitation}
+\textbf{Prompt injection is not prevented.} It remains an open research problem, and
+any claim of prevention is overstated. What the architecture achieves is to make
+injection unprofitable: an injected agent still cannot construct a payment that
+matches an order the owner approved. Injection handling is described as risk scoring,
+never as prevention.
+
+\section{Related Work and Positioning}\label{sec:related}
+Most contemporaneous systems are complements rather than competitors.
+
+P3P~\cite{p3p} provides agentic payment over UPI ReservePay, with the Grantex layer
+supplying agent identity, spending limits and audit trail. Mastercard Agent
+Pay~\cite{mc-ap} issues Agentic Tokens carrying agent identity and network-enforced
+merchant scope. MPP~\cite{mpp} and x402~\cite{x402} address machine-to-machine payment
+for API resources---a related but distinct problem, in which the item purchased is the
+HTTP resource itself and therefore requires no separate order record.
+
+The observation that instruction origin goes unverified after mandate creation is not
+novel and is named as open work in the literature~\cite{drift}. Describing the gap is
+therefore not a contribution; only a mechanism is.
+
+\subsection{The structural argument}
+A rail that adjudicates disputes concerning its own payments is a party to those
+disputes. If the entity moving the money also determines whether the basket was
+correct, it judges itself. Card networks are not merchants for the same reason.
+Neutrality here is not a marketing position but the precondition for the evidence
+having value.
+
+\section{Findings}\label{sec:findings}
+Four results emerged from implementation and are asserted by tests rather than
+argument. The implementation comprises 69 tests across rails, ledger, reconciliation
+and the order check.
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Signatures do not prevent overcharging.} A self-consistent inflated
+order---one whose line items genuinely sum to the inflated total---is approved whether
+signed by the agent, by the merchant, or by both. A signature establishes authorship,
+not truth. What refuses such an order is a per-payment ceiling close to the expected
+basket size.
+\item \textbf{Routing through an agent-held card destroys merchant scoping.} On the
+funding leg the payee is the card, so the mandate can only name the card. A mandate
+restricted to one merchant silently becomes unrestricted. A payment reaches a merchant
+that the same mandate refuses when paid directly.
+\item \textbf{A failed and refunded purchase consumes the periodic cap permanently}
+unless headroom is explicitly released on reversal. The owner is made whole in cash
+and left short in authority.
+\item \textbf{Revocation is three operations, not one:} terminate the card token,
+revoke the funding mandate, and return any resting float. Implementations typically
+perform the second only.
+\end{enumerate}
+
+\section{Commercial Model}\label{sec:biz}
+
+\subsection{Who pays}
+The buyer and the user are different parties. The owner experiences the problem; the
+device manufacturer absorbs its cost in support load, refunds and disabled features.
+The manufacturer is therefore the customer. Agent platforms are a later scale channel;
+payment service providers are a strategic white-label channel. Consumers do not pay
+for safety mechanisms---they decline products that lack them.
+
+\subsection{Go to market}
+The sequence is: one pilot in a segment that transacts today; written confirmation of
+the no-licence path from a PSP or sponsor bank; publication of the threat model and
+findings while the standards conversation remains open; and only then the platform
+channel, which must be earned with direct customers because a platform buys a threat
+model and incident data rather than a demonstration.
+
+Entry is through the engineer who deployed the agents and feels the risk first;
+signature comes from the party carrying the loss; the security function is the gate
+and requires a threat model rather than a demonstration. The category has no budget
+line, so an existing one is borrowed---fraud and risk, audit and compliance, or
+product warranty.
+
+\subsection{Revenue}
+UPI is zero-MDR, so no interchange exists to share on the UPI leg; the business is
+priced as software. Structures are given in Table~\ref{tab:rev}. \textbf{The figures
+are derived rather than validated}~\unver; testing them is a ninety-day objective.
+
+\begin{table}[t]
+\centering
+\caption{Revenue structures}
+\label{tab:rev}
+\begin{tabular}{@{}p{0.26\linewidth}p{0.30\linewidth}p{0.36\linewidth}@{}}
+\toprule
+\textbf{Line} & \textbf{Basis} & \textbf{Rationale} \\
+\midrule
+Platform fee & Per active agent per month & Grows as the manufacturer ships devices \\
+Decision fee & Per authorisation evaluated & Rail-independent \\
+Integration & One-time per manufacturer & Covers enablement, qualifies buyers \\
+Enterprise licence & Annual, to PSPs and banks & White-label within their product \\
+Interchange share & Card legs only & Upside, never foundation \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Price is defended against the loss rather than the software, benchmarked as basis
+points of controlled spend beside card interchange at 150--200 basis points.
+
+\section{Programme Context}\label{sec:prog}
+This work is presented within Fintech Spark, administered through the Startup
+Incubation and Innovation Centre at IIT Kanpur and funded by Pine Labs, including a
+ten-day industry immersion in Pune.
+
+Pine Labs is simultaneously the programme's funder and the vendor of P3P, the system
+most closely adjacent to this work. Both facts bear on positioning.
+
+The relevant public fact is that Pine Labs has stated it is in discussion with card
+networks to extend P3P beyond UPI~\secondary. That is precisely the two-rail problem
+addressed here. The appropriate posture is therefore complementary rather than
+competitive: P3P moves the money and Grantex verifies the agent, while the order check
+and the cross-rail receipt address what neither presently covers.
+
+The question that determines the scale of the contribution is whether P3P already
+binds a payment to an approved order. Its public documentation terminates at a
+quickstart and does not describe such a binding, but absence from public documentation
+is not absence from the protocol~\unver. Resolving this is the highest-priority
+verification item in the project.
+
+\section{Risks}\label{sec:risk}
+\begin{table}[t]
+\centering
+\caption{Principal risks}
+\label{tab:risk}
+\begin{tabular}{@{}p{0.30\linewidth}p{0.13\linewidth}p{0.49\linewidth}@{}}
+\toprule
+\textbf{Risk} & \textbf{Status} & \textbf{Resolution path} \\
+\midrule
+P3P already performs the order check & \unver & Read the published SDK, or ask directly. Determines the width of the contribution. \\
+Agent debits may be non-compliant & \contested & Whether ReservePay agent debits fall inside RBI's e-mandate exemption is unresolved~\cite{rbi-auth}. If not, issuer liability attaches in full. \\
+Agent dispute liability unassigned & \secondary & No network has published a binding rule. The card path's recourse is real but untested. \\
+Card path requires enablement & \secondary & Issuer, acquirer and network provisioning; no sandbox exists. A partnership constraint, not a capital one. \\
+UPI path requires capital & --- & Float requires a PPI licence; direct redistribution requires a PA licence at \rs 15\,crore net worth. \\
+Appliance installed base absent & --- & Mitigated by leading with segments that already transact. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Conclusion}
+The rails for agent payment have arrived; the safeguards have not. Every deployed
+system enforces a spending limit, and a spending limit cannot distinguish a correct
+purchase from an incorrect one of the same value. We have described a deterministic
+order check and a cross-rail evidence record that close that gap without introducing a
+new protocol, a new rail, or a new custodian of funds, and we have reported four
+implementation findings that constrain how such a system must be built---most
+significantly that cryptographic attestation of an order does not, by itself, prevent
+an owner from being overcharged.
+
+\section*{Acknowledgment}
+The author thanks Prof.\ Vimal Kumar (IIT Kanpur) for supervision, and SIIC IIT Kanpur
+and Pine Labs for the Fintech Spark programme.
+
+\begin{thebibliography}{99}
+\bibitem{p3p} Pine Labs, ``P3P --- Pine Labs Payments Protocol for AI Agents,''
+2026. [Online]. Available: \url{https://www.pinelabs.com/docs/online-payments/ai/p3p}
+\bibitem{mc-vi} Mastercard, ``Verifiable Intent,'' 2026. [Online]. Available:
+\url{https://www.mastercard.com/us/en/business/artificial-intelligence/mastercard-agent-pay.html}
+\bibitem{mc-ap} Mastercard, ``Agentic token framework: driving trusted AI
+transactions,'' 2025. [Online]. Available:
+\url{https://www.mastercard.com/global/en/news-and-trends/stories/2025/agentic-commerce-framework.html}
+\bibitem{ap2} Google Cloud, ``Announcing the Agent Payments Protocol (AP2),'' Sep.
+2025. [Online]. Available:
+\url{https://cloud.google.com/blog/products/ai-machine-learning/announcing-agents-to-payments-ap2-protocol}
+\bibitem{mpp} Stripe and Tempo, ``Introducing the Machine Payments Protocol,'' Mar.
+2026. [Online]. Available: \url{https://stripe.com/blog/machine-payments-protocol}
+\bibitem{x402} Coinbase, ``x402: a payments protocol for the internet,'' 2025.
+[Online]. Available: \url{https://github.com/coinbase/x402}
+\bibitem{npci-228} National Payments Corporation of India, ``Enhancement in UPI Single
+Block Multiple Debits (UPI Reserve Pay),'' Operating Circular OC~228, FY~2025--26.
+\bibitem{rbi-auth} Reserve Bank of India, ``Authentication Mechanisms for Digital
+Payment Transactions Directions,'' 2025.
+\bibitem{rbi-ppi} Reserve Bank of India, ``Draft Prepaid Payment Instruments
+Directions,'' Apr. 2026.
+\bibitem{drift} ``Instruction origin verification in delegated agent payments,''
+arXiv:2604.15367, 2026.
+\end{thebibliography}
+
+\end{document}
