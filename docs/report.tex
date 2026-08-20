@@ -96,6 +96,69 @@ payment is subsequently checked.
 Accordingly, the work begins when the basket is complete and the agent requests
 payment, and ends when the money has moved and the evidence is recorded.
 
+\section{Product Definition}\label{sec:product}
+The system is an \textbf{authorisation and evidence layer situated between an agent and
+a payment rail}. It verifies every machine-initiated payment against what the owner
+approved in advance, and produces the record a subsequent dispute requires.
+
+Stated for a device manufacturer: the product allows a device to purchase autonomously
+without the manufacturer becoming a payment company.
+
+\subsection{Functional components}
+Six components. They constitute a single product because none is sufficient alone.
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Agent registration.} A cryptographic identity chained to a verified owner
+and to the host device. A device may host several agents; revoking one does not affect
+the others.
+\item \textbf{Authority creation.} Per-purchase ceiling, period budget, category scope
+and expiry, written to a ReservePay block on UPI or an Agentic Token on cards from a
+single interface. The owner authenticates once.
+\item \textbf{The order check.} Two arithmetic tests executed before settlement, as
+specified in Section~\ref{sec:feat}.
+\item \textbf{The cross-rail receipt.} One signed record binding the mandate, the
+approved order and both payment legs, with the amount required to agree across all of
+them.
+\item \textbf{Owner control surface.} Purchase history presented beside the order each
+purchase was made against, and a revocation that fans out across both rails and any
+resting float.
+\item \textbf{Reconciliation.} Three outcomes---failed, succeeded, unknown---with
+refunds releasing the mandate headroom they consumed.
+\end{enumerate}
+
+\subsection{Integration surface}
+A manufacturer integrates seven endpoints.
+
+\begin{verbatim}
+POST /agents                register an agent on a device
+POST /authorities           owner grants limits
+POST /orders                agent submits the basket
+POST /payments              agent requests payment
+GET  /agents/{id}/history   for the owner application
+POST /agents/{id}/revoke    three-action revocation
+GET  /receipts/{id}         dispute evidence
+\end{verbatim}
+
+\subsection{Explicit non-goals}
+The system is not a payment rail; it never moves money on its own account. It is not a
+wallet; on the card path it holds no funds at any point. It is not a protocol; it
+consumes HTTP~402, AP2 mandate structures and Verifiable Intent rather than proposing
+alternatives. It is not an agent; it does not determine what to purchase.
+
+\subsection{Boundary}
+The system engages when the basket is complete and the agent requests payment, and
+disengages when settlement has occurred and evidence is recorded. Discovery, comparison
+and supplier selection are upstream concerns belonging to whoever authored the agent.
+
+\subsection{Why the components are inseparable}
+The order check is worthless without the authority, since there would be nothing to
+check against. The authority is of limited value without the check---which is precisely
+the gap in every system presently deployed. Both are diminished without the receipt,
+since a correctly enforced payment can still lose a dispute for want of evidence.
+
+This is the argument for the components constituting a purchasable product rather than
+three separable features.
+
 \section{Problem}\label{sec:pain}
 
 \subsection{The device manufacturer}

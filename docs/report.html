@@ -98,6 +98,15 @@ td:first-child{font-weight:600;white-space:nowrap}
   font-size:.82rem;line-height:1.9;overflow-x:auto}
 .stack .l{color:var(--faint)}
 .stack .h{color:var(--teal);font-weight:500}
+.api{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:1rem 1.2rem;
+  margin:1rem 0;font-family:"JetBrains Mono",monospace;font-size:.8rem;line-height:2;overflow-x:auto}
+.api .m{color:var(--teal);font-weight:500;display:inline-block;min-width:3.2rem}
+.api .u{display:inline-block;min-width:15rem}
+.api .c{color:var(--faint)}
+.notgoals{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.7rem;margin:1rem 0}
+.ng{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.8rem 1rem}
+.ng b{display:block;font-family:"Instrument Sans",sans-serif;font-size:.92rem}
+.ng span{font-size:.84rem;color:var(--soft);font-family:"Instrument Sans",sans-serif}
 </style>
 </head>
 <body>
@@ -107,19 +116,20 @@ td:first-child{font-weight:600;white-space:nowrap}
   <b>Contents</b>
   <a href="#s1"><span class="k">01</span>Summary</a>
   <a href="#s2"><span class="k">02</span>What we are delegating</a>
-  <a href="#s3"><span class="k">03</span>Pain points</a>
-  <a href="#s4"><span class="k">04</span>Use cases</a>
-  <a href="#s5"><span class="k">05</span>Architecture</a>
-  <a href="#s6"><span class="k">06</span>Tech stack &amp; protocols</a>
-  <a href="#s7"><span class="k">07</span>Core features</a>
-  <a href="#s8"><span class="k">08</span>Payment security</a>
-  <a href="#s9"><span class="k">09</span>Landscape</a>
-  <a href="#s10"><span class="k">10</span>Differentiators</a>
-  <a href="#s11"><span class="k">11</span>Who pays</a>
-  <a href="#s12"><span class="k">12</span>Go to market</a>
-  <a href="#s13"><span class="k">13</span>Revenue model</a>
-  <a href="#s14"><span class="k">14</span>Pine Labs</a>
-  <a href="#s15"><span class="k">15</span>Risks</a>
+  <a href="#s2b"><span class="k">03</span>Product definition</a>
+  <a href="#s3"><span class="k">04</span>Pain points</a>
+  <a href="#s4"><span class="k">05</span>Use cases</a>
+  <a href="#s5"><span class="k">06</span>Architecture</a>
+  <a href="#s6"><span class="k">07</span>Tech stack &amp; protocols</a>
+  <a href="#s7"><span class="k">08</span>Core features</a>
+  <a href="#s8"><span class="k">09</span>Payment security</a>
+  <a href="#s9"><span class="k">10</span>Landscape</a>
+  <a href="#s10"><span class="k">11</span>Differentiators</a>
+  <a href="#s11"><span class="k">12</span>Who pays</a>
+  <a href="#s12"><span class="k">13</span>Go to market</a>
+  <a href="#s13"><span class="k">14</span>Revenue model</a>
+  <a href="#s14"><span class="k">15</span>Pine Labs, and how the programme helps</a>
+  <a href="#s15"><span class="k">16</span>Risks and open questions</a>
 </nav>
 
 <main>
@@ -174,8 +184,68 @@ are somebody else's problem, and treating them as ours has been the main way thi
 project has lost time.</p>
 </section>
 
+<!-- product -->
+<section id="s2b"><h2><span class="k">03</span>Product definition</h2>
+<p><strong>An authorisation and evidence layer that sits between an agent and a payment
+rail.</strong> It checks every machine-initiated payment against what the owner approved
+in advance, and produces the record a dispute needs.</p>
+<p>For a device maker: <strong>your product can buy things on its own, and you do not
+become a payments company.</strong></p>
+
+<h3>Six components, one product</h3>
+<ol>
+  <li><strong>Agent registration.</strong> A cryptographic identity chained to a verified
+    owner and to the host device. One device, several agents; revoking one leaves the
+    others alone.</li>
+  <li><strong>Authority creation.</strong> Per-purchase ceiling, period budget, category
+    scope, expiry — written to a ReservePay block on UPI or an Agentic Token on cards,
+    from one interface. The owner authenticates once.</li>
+  <li><strong>The order check.</strong> Two arithmetic tests before settlement.</li>
+  <li><strong>The cross-rail receipt.</strong> One signed record binding the mandate, the
+    order and both payment legs, with the amount agreeing across all of them.</li>
+  <li><strong>Owner control surface.</strong> Purchase history shown beside the order each
+    purchase was made against, and a revoke that fans out across both rails and any
+    resting float.</li>
+  <li><strong>Reconciliation.</strong> Three outcomes — failed, succeeded, unknown — with
+    refunds releasing the headroom they consumed.</li>
+</ol>
+
+<h3>Integration surface</h3>
+<div class="api"><span class="m">POST</span><span class="u">/agents</span><span class="c">register an agent on a device</span>
+<span class="m">POST</span><span class="u">/authorities</span><span class="c">owner grants limits</span>
+<span class="m">POST</span><span class="u">/orders</span><span class="c">agent submits the basket</span>
+<span class="m">POST</span><span class="u">/payments</span><span class="c">agent requests payment</span>
+<span class="m">GET</span><span class="u">/agents/{id}/history</span><span class="c">for the owner app</span>
+<span class="m">POST</span><span class="u">/agents/{id}/revoke</span><span class="c">three-action revocation</span>
+<span class="m">GET</span><span class="u">/receipts/{id}</span><span class="c">dispute evidence</span></div>
+<p>Seven endpoints. That is the whole surface a manufacturer touches.</p>
+
+<h3>What it is not</h3>
+<div class="notgoals">
+  <div class="ng"><b>Not a rail</b><span>We never move money on our own account.</span></div>
+  <div class="ng"><b>Not a wallet</b><span>On the card path we hold no funds at any point.</span></div>
+  <div class="ng"><b>Not a protocol</b><span>We consume HTTP 402, AP2 and Verifiable Intent rather than proposing alternatives.</span></div>
+  <div class="ng"><b>Not an agent</b><span>We do not decide what to buy.</span></div>
+</div>
+
+<h3>Boundary</h3>
+<p><strong>Engages</strong> when the basket is complete and the agent requests payment.
+<strong>Disengages</strong> when settlement has occurred and the evidence is recorded.
+Discovery, comparison and supplier choice are upstream and belong to whoever authored
+the agent.</p>
+
+<div class="callout">
+  <span class="lbl">Why these are inseparable</span>
+  <p>The order check is worthless without the authority, because there is nothing to
+  check against. The authority is of limited value without the check — which is exactly
+  the gap in every system deployed today. Both are diminished without the receipt,
+  because a correctly enforced payment can still lose a dispute for want of evidence.</p>
+  <p>That is the argument for why a manufacturer buys this rather than assembling it.</p>
+</div>
+</section>
+
 <!-- 03 -->
-<section id="s3"><h2><span class="k">03</span>Pain points</h2>
+<section id="s3"><h2><span class="k">04</span>Pain points</h2>
 <p>Four parties are in pain, for different reasons, and only one of them will pay us.</p>
 
 <h3>The device maker — our customer</h3>
@@ -222,7 +292,7 @@ project has lost time.</p>
 </section>
 
 <!-- 04 -->
-<section id="s4"><h2><span class="k">04</span>Use cases</h2>
+<section id="s4"><h2><span class="k">05</span>Use cases</h2>
 <h3>The filter — all three, or the check is worth nothing</h3>
 <div class="cards">
   <div class="cd"><h4>The amount varies</h4><p>If it is always ₹499, a spend cap already
@@ -269,7 +339,7 @@ and a number we cannot defend is worse than no number.</p>
 </section>
 
 <!-- 05 -->
-<section id="s5"><h2><span class="k">05</span>Architecture</h2>
+<section id="s5"><h2><span class="k">06</span>Architecture</h2>
 <p>Two funding rails, offered together. The owner picks per agent. The control layer is
 identical either way.</p>
 <div class="tw"><table>
@@ -295,7 +365,7 @@ identical either way.</p>
 </section>
 
 <!-- 06 -->
-<section id="s6"><h2><span class="k">06</span>Tech stack &amp; protocols</h2>
+<section id="s6"><h2><span class="k">07</span>Tech stack &amp; protocols</h2>
 <div class="stack"><span class="l">owner app        </span>web + mobile · passkey auth · <span class="h">three-action revoke</span>
 <span class="l">control layer    </span>Python · <span class="h">deterministic order check</span> · Ed25519 · canonical JSON
 <span class="l">evidence         </span>double-entry ledger · append-only event log · <span class="h">cross-rail receipt</span>
@@ -327,7 +397,7 @@ identical either way.</p>
 </section>
 
 <!-- 07 -->
-<section id="s7"><h2><span class="k">07</span>Core features</h2>
+<section id="s7"><h2><span class="k">08</span>Core features</h2>
 <h3>1. Agent identity and enrolment</h3>
 <p>Each agent gets a cryptographic identity chained to a verified owner and to the
 device it runs on. One device, many agents; one owner, many devices. Killing one agent
@@ -362,7 +432,7 @@ silently exhausts the owner's monthly cap while their balance looks fine.</p>
 </section>
 
 <!-- 08 -->
-<section id="s8"><h2><span class="k">08</span>Payment security</h2>
+<section id="s8"><h2><span class="k">09</span>Payment security</h2>
 <h3>The principle</h3>
 <p><strong>Enforcement lives at the credential, not inside the agent.</strong> If an
 agent is prompt-injected, the limit does not move — because the limit was never in the
@@ -401,7 +471,7 @@ agent's custody.</p>
 </section>
 
 <!-- 09 -->
-<section id="s9"><h2><span class="k">09</span>Landscape</h2>
+<section id="s9"><h2><span class="k">10</span>Landscape</h2>
 <p>Most of these are not competitors. Saying so accurately is more useful than
 pretending otherwise.</p>
 <div class="tw"><table>
@@ -435,7 +505,7 @@ pretending otherwise.</p>
 </section>
 
 <!-- 10 -->
-<section id="s10"><h2><span class="k">10</span>Differentiators</h2>
+<section id="s10"><h2><span class="k">11</span>Differentiators</h2>
 <h3>One that is technical</h3>
 <p>The order check. Everyone checks the limit; nobody checks the purchase. It runs in
 30 seconds as a demo: ₹2,000 mandate, ₹118 basket, ₹600 charge — allowed by everything
@@ -465,7 +535,7 @@ to be building a control layer; this is what running one looks like.</p>
 </section>
 
 <!-- 11 -->
-<section id="s11"><h2><span class="k">11</span>Who pays</h2>
+<section id="s11"><h2><span class="k">12</span>Who pays</h2>
 <div class="tw"><table>
 <thead><tr><th>Buyer</th><th>Why they pay</th><th>Priority</th></tr></thead>
 <tbody>
@@ -484,7 +554,7 @@ from that split.</p>
 </section>
 
 <!-- 12 -->
-<section id="s12"><h2><span class="k">12</span>Go to market</h2>
+<section id="s12"><h2><span class="k">13</span>Go to market</h2>
 <h3>Sequence</h3>
 <ol>
   <li><strong>One pilot in a live-today segment.</strong> An EV charging operator, a
@@ -518,7 +588,7 @@ exists that week.</p>
 </section>
 
 <!-- 13 -->
-<section id="s13"><h2><span class="k">13</span>Revenue model</h2>
+<section id="s13"><h2><span class="k">14</span>Revenue model</h2>
 <div class="callout w">
   <span class="lbl">Status</span>
   <p><span class="tag u">UNVERIFIED</span> These are structures with illustrative
@@ -552,7 +622,7 @@ points. One prevented incident should cover many months of fee.</p>
 </section>
 
 <!-- 14 -->
-<section id="s14"><h2><span class="k">14</span>Pine Labs, and how the programme helps</h2>
+<section id="s14"><h2><span class="k">15</span>Pine Labs, and how the programme helps</h2>
 <p><strong>The programme.</strong> Fintech Spark, run through SIIC at IIT Kanpur and
 funded by Pine Labs, with a ten-day industry immersion in Pune. Pine Labs is therefore
 both the funder evaluating us and the incumbent whose product overlaps ours. Both facts
@@ -625,7 +695,7 @@ fake.</strong></p>
 </section>
 
 <!-- 15 -->
-<section id="s15"><h2><span class="k">15</span>Risks and open questions</h2>
+<section id="s15"><h2><span class="k">16</span>Risks and open questions</h2>
 <div class="tw"><table>
 <thead><tr><th>Risk</th><th>Status</th><th>How it resolves</th></tr></thead>
 <tbody>
