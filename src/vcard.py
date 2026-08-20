@@ -46,6 +46,10 @@ from orchestrator import Orchestrator, PaymentResult
 from policy import PolicyConfig, PolicyEngine
 
 
+class CardRevoked(Exception):
+    """Raised when a killed token is asked to spend."""
+
+
 # --------------------------------------------------------------------------
 # The card
 # --------------------------------------------------------------------------
@@ -67,6 +71,8 @@ class VirtualCard:
     umn: str
     #: load_txn_id -> the spends drawn against it. the link the rails do not keep.
     chain: dict[str, list[str]] = field(default_factory=dict)
+    #: set by revocation.revoke(). a killed token spends nothing, even if funded.
+    revoked: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -76,6 +82,7 @@ class VirtualCard:
             "owner_vpa": self.owner_vpa,
             "umn": self.umn,
             "chain": self.chain,
+            "revoked": self.revoked,
         }
 
 
@@ -152,6 +159,11 @@ def spend(sim, card: VirtualCard, payee_vpa: str, amount: Money,
     Operator policy still applies, and so does the order gate if it is switched on.
     Those are the only protections left.
     """
+    if card.revoked:
+        raise CardRevoked(
+            f"the token for {card.agent_id} was revoked; it cannot spend"
+        )
+
     card_policy = PolicyEngine(
         sim.store,
         PolicyConfig(
@@ -197,6 +209,18 @@ def sweep(sim, card: VirtualCard, idempotency_key: str) -> PaymentResult | None:
     left = balance(sim, card)
     if left.paise <= 0:
         return None
+
+    # Returning the money is not enough on its own. The load consumed the user's
+    # mandate headroom, and a purchase that never happened must not keep eating it --
+    # otherwise a run of failures silently exhausts the cap while the user is made
+    # whole in cash. Headroom is released for exactly the amount coming back.
+    mandate = sim.store.get_mandate(card.umn) if card.umn else None
+    if mandate is not None and mandate.consumed.paise >= left.paise:
+        mandate.consumed = mandate.consumed - left
+        sim.store.save_mandate(mandate)
+        sim.store.record_event("vcard.headroom_released", {
+            "card_id": card.card_id, "umn": card.umn, "amount_paise": left.paise,
+        })
 
     card_policy = PolicyEngine(
         sim.store, PolicyConfig(require_mandate=False, require_order=False),

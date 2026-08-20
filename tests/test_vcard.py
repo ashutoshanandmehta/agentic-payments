@@ -172,6 +172,28 @@ class TestFloatBehaviour(CardCase):
     def test_sweep_is_a_no_op_on_an_empty_card(self):
         self.assertIsNone(vcard.sweep(self.sim, self.card, "k-none"))
 
+    def test_refund_releases_the_headroom_it_consumed(self):
+        """
+        A purchase that never happened must not keep eating the cap.
+
+        The load consumes headroom. If the spend then fails and the money is
+        returned, the user is whole in cash -- but a run of failures would silently
+        exhaust the mandate unless the headroom comes back too.
+        """
+        before = self.sim.store.get_mandate(self.umn).remaining
+        vcard.load(self.sim, self.card, Money.rupees("499"), "k-load")
+        self.assertEqual(self.sim.store.get_mandate(self.umn).remaining,
+                         before - Money.rupees("499"))
+
+        self.sim.faults.force = "credit_fail"
+        vcard.spend(self.sim, self.card, simwiring.MERCHANT_VPA,
+                    Money.rupees("499"), "k-spend")
+        vcard.sweep(self.sim, self.card, "k-refund")
+
+        self.assertEqual(vcard.balance(self.sim, self.card), Money(0))
+        self.assertEqual(self.sim.store.get_mandate(self.umn).remaining, before,
+                         "headroom must return with the money")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
