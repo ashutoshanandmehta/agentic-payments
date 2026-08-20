@@ -102,7 +102,8 @@ payment, and ends when the money has moved and the evidence is recorded.
 To let a product transact, a manufacturer requires a payment licence, a mandate
 system, spend controls a customer will trust, and a dispute path---in every market it
 sells into. Manufacturers will not become payment companies in order to sell water
-filters. This is the party that will pay for a solution.
+filters. This is the party that will pay for a solution---a claim supported by
+fieldwork rather than assertion, in Section~\ref{sec:field}.
 
 \subsection{The owner}
 The owner will not permit a machine to spend without visible limits and a means of
@@ -124,6 +125,34 @@ framework is set out in NPCI Operating Circular~228~\cite{npci-228}.
 As of mid-2026 no card network has published a binding chargeback rule for a dispute
 initiated by an agent, and the one specification that addresses the question in writing
 assigns the loss to the merchant~\secondary.
+
+\section{Field Validation}\label{sec:field}
+Section~\ref{sec:pain} argues that the device manufacturer is the party that pays.
+That claim is not left as an assertion. During a ten-day industry immersion the
+following was obtained directly from operators and manufacturers~\primary.
+
+\subsection{Liability lands on the manufacturer, unprompted}
+The founder of \textbf{Innexia} stated, without being asked and in substantially the
+terms of this thesis, that when an automated purchase goes wrong \emph{the customer
+comes after us, not the payment provider}.
+
+This is the load-bearing commercial claim of the entire architecture, volunteered by a
+manufacturer rather than argued by us. It establishes both that the pain is real and
+that it is felt by the party with a budget.
+
+\subsection{Integration intent}
+\textbf{zunpulse} and \textbf{NeoSapien} each stated an intent to integrate.
+
+\subsection{Willingness is gated on control, not on payments}
+Across \textbf{15 operators} surveyed, willingness to allow autonomous purchasing was
+gated \emph{entirely} on the presence of control and revocation, not on payment
+capability, cost, or rail.
+
+\subsection{What this establishes}
+The market's objection is not \emph{can the machine pay}---that problem is solved by
+several vendors. The objection is \emph{can I stop it, and who pays when it is wrong}.
+That is precisely the layer described in Sections~\ref{sec:arch}--\ref{sec:feat}, and
+it is the reason a control layer is a product rather than a feature.
 
 \section{Use Cases}\label{sec:use}
 
@@ -409,6 +438,17 @@ is not absence from the protocol~\unver. Resolving this is the highest-priority
 verification item in the project.
 
 \section{Risks}\label{sec:risk}
+Six risks are material. Two are structural and will not resolve with effort; the
+remaining four are open questions with a defined way to close them.
+
+The single most consequential is whether P3P already binds a payment to an approved
+order. If it does, the contribution narrows to the cross-rail receipt and the control
+surface. If it does not, the order check stands as described. The question is
+answerable in one conversation and has not yet been asked.
+
+Table~\ref{tab:risk} states each risk with its evidential status and the action that
+would settle it.
+
 \begin{table}[t]
 \centering
 \caption{Principal risks}
