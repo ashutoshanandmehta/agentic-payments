@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Payment Lifecycle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f5f6f7; --panel:#fff; --ink:#14181c; --soft:#525b62; --faint:#8b939a;
+  --line:#dde2e5; --soft-line:#eaeef0;
+  --ok:#1d7a4d; --hot:#c2410c; --hot-wash:#fbeee6; --stop:#a83a2c; --wait:#8a6410;
+  --rail:#2f5fd0;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111417; --panel:#191d21; --ink:#e5e9ec; --soft:#9aa3aa; --faint:#6e767c;
+  --line:#282e33; --soft-line:#1f2427;
+  --ok:#5cbb84; --hot:#ef8354; --hot-wash:#2b1d15; --stop:#e07a6a; --wait:#d5a44f;
+  --rail:#7aa2f7;
+}}
+:root[data-theme="dark"]{
+  --bg:#111417; --panel:#191d21; --ink:#e5e9ec; --soft:#9aa3aa; --faint:#6e767c;
+  --line:#282e33; --soft-line:#1f2427;
+  --ok:#5cbb84; --hot:#ef8354; --hot-wash:#2b1d15; --stop:#e07a6a; --wait:#d5a44f;
+  --rail:#7aa2f7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"IBM Plex Serif",Georgia,serif;font-size:16.5px;line-height:1.6}
+.page{max-width:62rem;margin:0 auto;padding:3rem 1.5rem 6rem}
+h1,h2,h3,.eyebrow,th,.lbl{font-family:"IBM Plex Sans",system-ui,sans-serif}
+code,.mono{font-family:"IBM Plex Mono",monospace;font-size:.87em}
+
+.eyebrow{font-size:.7rem;text-transform:uppercase;letter-spacing:.15em;font-weight:600;color:var(--faint);margin:0}
+h1{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:700;letter-spacing:-.025em;line-height:1.13;margin:.6rem 0 0}
+.deck{font-size:1.1rem;color:var(--soft);max-width:40rem;margin:.9rem 0 0}
+h2{font-size:1.2rem;font-weight:600;margin:2.6rem 0 .3rem;padding-bottom:.45rem;border-bottom:1px solid var(--line)}
+h3{font-size:.98rem;font-weight:600;margin:1.4rem 0 .3rem}
+p{margin:0 0 .8rem;max-width:42rem}
+ul{margin:.3rem 0 .9rem;padding-left:1.2rem;max-width:42rem}
+li{margin-bottom:.3rem}
+
+.figwrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:1.4rem 1rem;margin:1.3rem 0}
+svg{display:block;margin:0 auto}
+.sname{font-family:"IBM Plex Sans",sans-serif;font-size:11.5px;font-weight:600;fill:var(--ink)}
+.ssub{font-family:"IBM Plex Mono",monospace;font-size:9px;fill:var(--faint)}
+.slab{font-family:"IBM Plex Sans",sans-serif;font-size:9.5px;font-weight:500;fill:var(--soft)}
+.phase{font-family:"IBM Plex Mono",monospace;font-size:9px;fill:var(--faint);letter-spacing:.08em}
+
+.tw{overflow-x:auto;margin:1.1rem 0}
+table{width:100%;border-collapse:collapse;font-size:.88rem;font-family:"IBM Plex Sans",sans-serif}
+th{text-align:left;font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);
+  font-weight:600;padding:0 .9rem .5rem 0;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:.5rem .9rem .5rem 0;border-bottom:1px solid var(--soft-line);vertical-align:top}
+td:first-child{font-family:"IBM Plex Mono",monospace;font-weight:500;white-space:nowrap}
+.who-u{color:var(--rail);font-weight:600}
+.who-us{color:var(--hot);font-weight:600}
+.who-m{color:var(--ok);font-weight:600}
+
+.hot-note{border-left:3px solid var(--hot);background:var(--hot-wash);padding:.9rem 1.1rem;
+  border-radius:0 6px 6px 0;margin:1.2rem 0;max-width:42rem}
+.hot-note p{margin:0}
+.hot-note .lbl{font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;
+  color:var(--hot);display:block;margin-bottom:.3rem}
+
+.note{font-size:.87rem;color:var(--faint);max-width:42rem;margin-top:1.2rem}
+</style>
+</head>
+<body>
+<div class="page">
+
+<p class="eyebrow">Architecture</p>
+<h1>The payment lifecycle</h1>
+<p class="deck">One purchase, from the agent finishing a basket to the evidence being
+recorded. Two rails, two legs, and one window where the money is neither the owner's nor
+the merchant's.</p>
+
+<h2>States</h2>
+<div class="figwrap">
+<svg viewBox="0 0 880 660" width="880" height="660" role="img"
+     aria-label="State diagram of a purchase: order signed, checked, funded over UPI, paid over cards, swept and settled, with declined, refunded and reconciling branches.">
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,1 L8,4.5 L0,8 z" fill="var(--soft)"/></marker>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,1 L8,4.5 L0,8 z" fill="var(--hot)"/></marker>
+    <marker id="as" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,1 L8,4.5 L0,8 z" fill="var(--stop)"/></marker>
+  </defs>
+
+  <!-- exposure band -->
+  <rect x="12" y="268" width="856" height="248" rx="6" fill="var(--hot-wash)"/>
+  <text class="phase" x="858" y="286" text-anchor="end" fill="var(--hot)">MONEY IS WITH US</text>
+
+  <!-- phase labels -->
+  <text class="phase" x="14" y="42">NO MONEY AT RISK</text>
+  <text class="phase" x="14" y="540">CLOSED</text>
+
+  <!-- ORDER SIGNED -->
+  <rect x="60" y="52" width="190" height="46" rx="6" fill="var(--panel)" stroke="var(--line)"/>
+  <text class="sname" x="155" y="72" text-anchor="middle">ORDER SIGNED</text>
+  <text class="ssub" x="155" y="87" text-anchor="middle">basket + agent signature</text>
+
+  <!-- CHECKING -->
+  <rect x="60" y="140" width="190" height="46" rx="6" fill="var(--panel)" stroke="var(--line)"/>
+  <text class="sname" x="155" y="160" text-anchor="middle">CHECKING</text>
+  <text class="ssub" x="155" y="175" text-anchor="middle">order vs authority</text>
+  <line x1="155" y1="98" x2="155" y2="134" stroke="var(--soft)" stroke-width="1.3" marker-end="url(#a)"/>
+
+  <!-- REFUSED -->
+  <rect x="430" y="140" width="170" height="46" rx="6" fill="var(--panel)" stroke="var(--stop)"/>
+  <text class="sname" x="515" y="160" text-anchor="middle" fill="var(--stop)">REFUSED</text>
+  <text class="ssub" x="515" y="175" text-anchor="middle">terminal · nothing moved</text>
+  <line x1="250" y1="163" x2="424" y2="163" stroke="var(--stop)" stroke-width="1.3" marker-end="url(#as)"/>
+  <text class="slab" x="337" y="156" text-anchor="middle">check fails</text>
+
+  <!-- FUNDING -->
+  <rect x="60" y="220" width="190" height="46" rx="6" fill="var(--panel)" stroke="var(--rail)"/>
+  <text class="sname" x="155" y="240" text-anchor="middle">FUNDING</text>
+  <text class="ssub" x="155" y="255" text-anchor="middle">UPI · ReservePay debit</text>
+  <line x1="155" y1="186" x2="155" y2="214" stroke="var(--soft)" stroke-width="1.3" marker-end="url(#a)"/>
+  <text class="slab" x="200" y="205">passes</text>
+
+  <!-- FUNDED -->
+  <rect x="60" y="300" width="190" height="46" rx="6" fill="var(--panel)" stroke="var(--hot)" stroke-width="2"/>
+  <text class="sname" x="155" y="320" text-anchor="middle" fill="var(--hot)">FUNDED</text>
+  <text class="ssub" x="155" y="335" text-anchor="middle">on the agent's card</text>
+  <line x1="155" y1="266" x2="155" y2="294" stroke="var(--hot)" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- PAYING -->
+  <rect x="60" y="380" width="190" height="46" rx="6" fill="var(--panel)" stroke="var(--rail)"/>
+  <text class="sname" x="155" y="400" text-anchor="middle">PAYING</text>
+  <text class="ssub" x="155" y="415" text-anchor="middle">card · agentic token</text>
+  <line x1="155" y1="346" x2="155" y2="374" stroke="var(--hot)" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- PAID -->
+  <rect x="60" y="460" width="190" height="46" rx="6" fill="var(--panel)" stroke="var(--ok)"/>
+  <text class="sname" x="155" y="480" text-anchor="middle" fill="var(--ok)">PAID</text>
+  <text class="ssub" x="155" y="495" text-anchor="middle">merchant has the money</text>
+  <line x1="155" y1="426" x2="155" y2="454" stroke="var(--hot)" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- SETTLED -->
+  <rect x="60" y="556" width="190" height="46" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="2"/>
+  <text class="sname" x="155" y="576" text-anchor="middle" fill="var(--ok)">SETTLED</text>
+  <text class="ssub" x="155" y="591" text-anchor="middle">swept · receipt issued</text>
+  <line x1="155" y1="506" x2="155" y2="550" stroke="var(--soft)" stroke-width="1.3" marker-end="url(#a)"/>
+
+  <!-- REFUNDING -->
+  <rect x="430" y="380" width="170" height="46" rx="6" fill="var(--panel)" stroke="var(--hot)"/>
+  <text class="sname" x="515" y="400" text-anchor="middle" fill="var(--hot)">REFUNDING</text>
+  <text class="ssub" x="515" y="415" text-anchor="middle">card &rarr; owner</text>
+  <line x1="250" y1="403" x2="424" y2="403" stroke="var(--stop)" stroke-width="1.3" marker-end="url(#as)"/>
+  <text class="slab" x="337" y="396" text-anchor="middle">card leg declined</text>
+
+  <!-- REFUNDED -->
+  <rect x="430" y="556" width="170" height="46" rx="6" fill="var(--panel)" stroke="var(--stop)"/>
+  <text class="sname" x="515" y="576" text-anchor="middle" fill="var(--stop)">REFUNDED</text>
+  <text class="ssub" x="515" y="591" text-anchor="middle">terminal · headroom released</text>
+  <line x1="515" y1="426" x2="515" y2="550" stroke="var(--stop)" stroke-width="1.3" marker-end="url(#as)"/>
+
+  <!-- RECONCILING -->
+  <rect x="670" y="300" width="180" height="46" rx="6" fill="var(--panel)" stroke="var(--wait)" stroke-width="2"/>
+  <text class="sname" x="760" y="320" text-anchor="middle" fill="var(--wait)">RECONCILING</text>
+  <text class="ssub" x="760" y="335" text-anchor="middle">outcome unknown</text>
+  <path d="M250 243 Q 460 243 660 310" fill="none" stroke="var(--wait)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <path d="M250 396 Q 500 380 662 340" fill="none" stroke="var(--wait)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <text class="slab" x="500" y="252" text-anchor="middle" fill="var(--wait)">timeout &mdash; never refund here</text>
+
+  <!-- recon outputs -->
+  <path d="M760 346 Q 760 470 610 480" fill="none" stroke="var(--wait)" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <path d="M610 480 L 258 480" fill="none" stroke="var(--wait)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <text class="slab" x="700" y="466" text-anchor="middle" fill="var(--wait)">both legs posted &rarr; settle</text>
+  <path d="M760 346 Q 780 470 600 560" fill="none" stroke="var(--wait)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <text class="slab" x="820" y="440" text-anchor="middle" fill="var(--wait)">debit only</text>
+  <text class="slab" x="820" y="453" text-anchor="middle" fill="var(--wait)">&rarr; reverse</text>
+
+  <!-- REVOKED -->
+  <rect x="670" y="130" width="180" height="46" rx="6" fill="var(--panel)" stroke="var(--stop)" stroke-dasharray="4 3"/>
+  <text class="sname" x="760" y="150" text-anchor="middle" fill="var(--stop)">REVOKED</text>
+  <text class="ssub" x="760" y="165" text-anchor="middle">owner pulls the plug</text>
+  <path d="M250 320 Q 520 300 700 180" fill="none" stroke="var(--stop)" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#as)"/>
+  <text class="slab" x="560" y="300" text-anchor="middle" fill="var(--stop)">any state &rarr; kill token, revoke block, sweep</text>
+</svg>
+</div>
+
+<div class="hot-note">
+  <span class="lbl">The exposure window</span>
+  <p><strong>FUNDED through PAID</strong> is the only interval where the money is neither
+  the owner's nor the merchant's. Every risk this architecture adds lives inside it, and
+  every mitigation is about making it shorter — load the exact basket total, pay
+  immediately, sweep on failure.</p>
+</div>
+
+<h2>Who holds the money in each state</h2>
+<div class="tw"><table>
+<thead><tr><th>State</th><th>Money is with</th><th>Can move to</th></tr></thead>
+<tbody>
+<tr><td>ORDER SIGNED</td><td class="who-u">the owner</td><td>CHECKING</td></tr>
+<tr><td>CHECKING</td><td class="who-u">the owner</td><td>FUNDING · REFUSED</td></tr>
+<tr><td>REFUSED</td><td class="who-u">the owner</td><td>— terminal</td></tr>
+<tr><td>FUNDING</td><td class="who-u">the owner</td><td>FUNDED · REFUSED · RECONCILING</td></tr>
+<tr><td>FUNDED</td><td class="who-us">us</td><td>PAYING · REVOKED</td></tr>
+<tr><td>PAYING</td><td class="who-us">us</td><td>PAID · REFUNDING · RECONCILING</td></tr>
+<tr><td>REFUNDING</td><td class="who-us">us</td><td>REFUNDED</td></tr>
+<tr><td>PAID</td><td class="who-m">the merchant</td><td>SETTLED</td></tr>
+<tr><td>RECONCILING</td><td class="who-us">unknown — that is the point</td><td>SETTLED · REFUNDING · REFUSED</td></tr>
+<tr><td>REFUNDED</td><td class="who-u">the owner</td><td>— terminal</td></tr>
+<tr><td>SETTLED</td><td class="who-m">the merchant</td><td>— terminal</td></tr>
+</tbody></table></div>
+
+<h2>Three rules the lifecycle enforces</h2>
+
+<h3>1. The check runs before any money moves</h3>
+<p>CHECKING sits between ORDER SIGNED and FUNDING, not after. A payment that fails the
+order check never reaches a rail, so a refusal costs nothing and leaves nothing to undo.</p>
+
+<h3>2. Never refund on a timeout</h3>
+<p>A timeout means the outcome is genuinely unknown — the merchant may have been paid.
+Refunding then pays twice. RECONCILING is a distinct state precisely so that "we do not
+know" cannot be silently collapsed into "it failed."</p>
+<p>The sweep asks both rails what actually posted. Both posted, settle. Debit only,
+reverse. Neither, refuse.</p>
+
+<h3>3. Refunds release headroom</h3>
+<p>REFUNDING returns the money <em>and</em> the mandate headroom the funding leg
+consumed. Without the second half, a run of failures silently exhausts the owner's cap
+while their balance looks correct.</p>
+
+<h2>Revocation cuts across everything</h2>
+<p>REVOKED is reachable from any live state and is three actions, not one: kill the card
+token, revoke the UPI block, sweep any resting float. Each is reported separately,
+because a revoke that half worked is worse than one that failed loudly.</p>
+<p>The hard case is revocation during FUNDED. The block is dead but the money is already
+on the card and perfectly spendable — which is why the sweep is part of revoking rather
+than a follow-up.</p>
+
+<h2>Two layers, not one</h2>
+<p>These are <strong>purchase</strong> states. Each rail leg internally runs its own
+transaction state machine — created, authorised, debit pending, debited, credit pending,
+credited, settled, with declined, reversed and timed-out branches.</p>
+<p>One purchase therefore spans two transactions. The <strong>cross-rail receipt</strong>
+exists because nothing else records that they were the same purchase.</p>
+
+<p class="note">Diagram states correspond to <code>src/vcard.py</code>,
+<code>src/revocation.py</code> and <code>src/recon.py</code>. The per-leg transaction
+machine is in <code>src/models.py</code>.</p>
+
+</div>
+</body>
+</html>

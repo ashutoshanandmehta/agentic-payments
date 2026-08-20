@@ -325,6 +325,63 @@ postings must sum to zero, an append-only event log, Ed25519 signatures over
 canonically serialised records, and monetary values represented exclusively as integer
 paise. Owner-facing control is a web application authenticated by passkey.
 
+\section{Payment Lifecycle}\label{sec:life}
+A purchase passes through eleven states. Table~\ref{tab:life} gives each with the party
+holding the money, which is the property that matters for risk.
+
+\begin{table}[t]
+\centering
+\caption{Purchase lifecycle states}
+\label{tab:life}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{State} & \textbf{Money held by} & \textbf{Successors} \\
+\midrule
+\texttt{ORDER SIGNED} & Owner    & \texttt{CHECKING} \\
+\texttt{CHECKING}     & Owner    & \texttt{FUNDING}, \texttt{REFUSED} \\
+\texttt{REFUSED}      & Owner    & terminal \\
+\texttt{FUNDING}      & Owner    & \texttt{FUNDED}, \texttt{REFUSED}, \texttt{RECONCILING} \\
+\texttt{FUNDED}       & \textbf{Operator} & \texttt{PAYING}, \texttt{REVOKED} \\
+\texttt{PAYING}       & \textbf{Operator} & \texttt{PAID}, \texttt{REFUNDING}, \texttt{RECONCILING} \\
+\texttt{REFUNDING}    & \textbf{Operator} & \texttt{REFUNDED} \\
+\texttt{PAID}         & Merchant & \texttt{SETTLED} \\
+\texttt{RECONCILING}  & Unknown  & \texttt{SETTLED}, \texttt{REFUNDING}, \texttt{REFUSED} \\
+\texttt{REFUNDED}     & Owner    & terminal \\
+\texttt{SETTLED}      & Merchant & terminal \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The exposure window}
+\texttt{FUNDED} through \texttt{PAID} is the sole interval in which the funds belong to
+neither the owner nor the merchant. Every risk introduced by the two-leg architecture
+resides within it, and every mitigation reduces to shortening it: load the exact basket
+total, settle immediately, sweep on failure.
+
+\subsection{Invariants}
+\begin{enumerate}[leftmargin=*]
+\item \textbf{The check precedes any movement of money.} \texttt{CHECKING} lies between
+\texttt{ORDER SIGNED} and \texttt{FUNDING}. A payment failing the order check never
+reaches a rail, so refusal costs nothing and leaves nothing to reverse.
+\item \textbf{A timeout never triggers a refund.} \texttt{RECONCILING} exists as a
+distinct state so that \emph{unknown} cannot be silently collapsed into \emph{failed};
+refunding an unknown outcome pays twice.
+\item \textbf{Refunds release headroom.} \texttt{REFUNDING} returns both the funds and
+the mandate headroom consumed by the funding leg.
+\end{enumerate}
+
+\subsection{Revocation}
+\texttt{REVOKED} is reachable from any live state and comprises three operations:
+terminate the card token, revoke the funding mandate, and sweep any resting float. The
+difficult case is revocation during \texttt{FUNDED}, where the block is dead but the
+funds are already on the card and remain spendable---which is why the sweep belongs to
+revocation rather than following it.
+
+\subsection{Layering}
+These are \emph{purchase} states. Each rail leg internally executes its own transaction
+state machine. One purchase therefore spans two transactions, and the cross-rail receipt
+exists because nothing else records that they were the same purchase.
+
 \section{Core Features}\label{sec:feat}
 
 \subsection{Agent identity and enrolment}
