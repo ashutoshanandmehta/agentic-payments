@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Two-Rail Agent Payment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=DM+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap">
+<style>
+:root{
+  --ground:#f5f6f8; --panel:#ffffff; --ink:#191a21; --ink-soft:#5b606e;
+  --ink-faint:#8f94a3; --rule:#dcdfe6; --rule-soft:#eaecf1;
+  --user:#3355c8; --agent:#6a3fd4; --card:#c8442f; --merchant:#0a7686;
+  --card-wash:#fbeae6; --settled:#237a4c; --warn:#9a6410;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#15161c; --panel:#1c1e26; --ink:#e7e8ee; --ink-soft:#a0a5b4;
+    --ink-faint:#717685; --rule:#2d3039; --rule-soft:#23262e;
+    --user:#7e9bf5; --agent:#a888f0; --card:#ef7f68; --merchant:#3fb6c6;
+    --card-wash:#2c1a16; --settled:#5cbb84; --warn:#d7a24f;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#15161c; --panel:#1c1e26; --ink:#e7e8ee; --ink-soft:#a0a5b4;
+  --ink-faint:#717685; --rule:#2d3039; --rule-soft:#23262e;
+  --user:#7e9bf5; --agent:#a888f0; --card:#ef7f68; --merchant:#3fb6c6;
+  --card-wash:#2c1a16; --settled:#5cbb84; --warn:#d7a24f;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:Newsreader,Georgia,serif;font-size:17px;line-height:1.6}
+.page{max-width:64rem;margin:0 auto;padding:3.5rem 1.5rem 6rem}
+h1,h2,h3,.eyebrow,.chip,th,.stepn,.lane{font-family:Archivo,system-ui,sans-serif}
+code,.mono{font-family:"DM Mono",ui-monospace,monospace;font-size:.87em}
+
+.eyebrow{font-size:.7rem;text-transform:uppercase;letter-spacing:.15em;font-weight:600;color:var(--ink-faint);margin:0}
+h1{font-size:clamp(1.9rem,4.4vw,2.8rem);font-weight:700;letter-spacing:-.028em;line-height:1.1;margin:.6rem 0 0;text-wrap:balance}
+.deck{font-size:1.15rem;color:var(--ink-soft);max-width:40rem;margin:1rem 0 0;text-wrap:pretty}
+h2{font-size:1.3rem;font-weight:600;letter-spacing:-.015em;margin:0 0 .4rem;text-wrap:balance}
+h3{font-size:1rem;font-weight:600;margin:0 0 .3rem}
+p{margin:0 0 .85rem;max-width:41rem}
+p:last-child{margin-bottom:0}
+hr.sep{border:0;border-top:1px solid var(--rule);margin:3.2rem 0}
+
+.assume{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:1.2rem 1.4rem;margin-top:1.5rem}
+.assume ul{margin:.5rem 0 0;padding-left:1.2rem;font-size:.95rem;color:var(--ink-soft)}
+.assume li{margin-bottom:.3rem}
+
+.parties{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.9rem;margin-top:1.4rem}
+.pt{background:var(--panel);border:1px solid var(--rule);border-radius:7px;padding:.9rem 1rem;border-top:3px solid var(--rule)}
+.pt.u{border-top-color:var(--user)} .pt.a{border-top-color:var(--agent)}
+.pt.c{border-top-color:var(--card)} .pt.m{border-top-color:var(--merchant)}
+.pt h3{font-size:.95rem;margin-bottom:.2rem}
+.pt.u h3{color:var(--user)} .pt.a h3{color:var(--agent)}
+.pt.c h3{color:var(--card)} .pt.m h3{color:var(--merchant)}
+.pt p{font-size:.87rem;color:var(--ink-soft);margin:0}
+
+.figwrap{overflow-x:auto;background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:1.4rem 1rem;margin-top:1.4rem}
+svg{display:block;margin:0 auto}
+.lane{font-size:12px;font-weight:600}
+.stepn{font-family:"DM Mono",monospace;font-size:10px;fill:var(--ink-faint)}
+.msg{font-family:Archivo,sans-serif;font-size:11px;font-weight:500;fill:var(--ink)}
+.sub{font-family:"DM Mono",monospace;font-size:9.5px;fill:var(--ink-faint)}
+
+.steps{display:flex;flex-direction:column;gap:0;margin-top:1.6rem}
+.step{display:grid;grid-template-columns:2.6rem 1fr;gap:1.2rem;padding:1.2rem 0;border-top:1px solid var(--rule-soft)}
+.step:first-child{border-top:0}
+.step .n{font-family:"DM Mono",monospace;font-size:.8rem;color:var(--ink-faint);padding-top:.25rem}
+.step p{font-size:.96rem;margin-bottom:.5rem}
+.chip{display:inline-block;font-size:.63rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;padding:.17rem .5rem;border-radius:3px;margin-left:.45rem;vertical-align:.16em}
+.chip.upi{background:color-mix(in srgb,var(--user) 15%,transparent);color:var(--user)}
+.chip.card{background:var(--card-wash);color:var(--card)}
+.chip.once{background:color-mix(in srgb,var(--ink-faint) 18%,transparent);color:var(--ink-soft)}
+
+.data{background:var(--ground);border:1px solid var(--rule);border-radius:5px;padding:.7rem .9rem;margin-top:.6rem;font-family:"DM Mono",monospace;font-size:.79rem;line-height:1.8;overflow-x:auto;white-space:pre}
+.k{color:var(--ink-faint)}
+
+.hot{border-left:3px solid var(--card);background:var(--card-wash);padding:.9rem 1.1rem;border-radius:0 6px 6px 0;margin-top:1.2rem}
+.hot p{margin:0;font-size:.94rem;max-width:39rem}
+.hot .lbl{font-family:Archivo,sans-serif;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--card);font-weight:700;display:block;margin-bottom:.3rem}
+
+.key{border-left:3px solid var(--settled);background:color-mix(in srgb,var(--settled) 8%,transparent);padding:1rem 1.2rem;border-radius:0 6px 6px 0;margin-top:1.4rem}
+.key .lbl{font-family:Archivo,sans-serif;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--settled);font-weight:700;display:block;margin-bottom:.35rem}
+.key p{margin:0 0 .6rem;max-width:39rem}
+.key p:last-child{margin-bottom:0}
+
+.tablewrap{overflow-x:auto;margin-top:1.2rem}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th{text-align:left;font-size:.67rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-faint);font-weight:600;padding:0 1rem .5rem 0;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:.6rem 1rem .6rem 0;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+td:first-child{font-family:"DM Mono",monospace;white-space:nowrap;color:var(--ink-soft)}
+
+.open{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:1.3rem 1.5rem;margin-top:1.4rem}
+.open ol{margin:.6rem 0 0;padding-left:1.3rem}
+.open li{margin-bottom:.7rem;font-size:.95rem}
+.open li:last-child{margin-bottom:0}
+.open b{font-family:Archivo,sans-serif;font-weight:600}
+</style>
+</head>
+<body>
+<div class="page">
+
+<p class="eyebrow">Design proposal &middot; 20 August 2026</p>
+<h1>The Two-Rail Agent Payment</h1>
+<p class="deck">The user's mandate funds a short-lived virtual card on UPI. The card pays
+the merchant on card rails. Money rests with the agent for seconds, and the design buys
+something UPI cannot offer on its own.</p>
+
+<div class="assume">
+  <h3>Assumed, not argued</h3>
+  <ul>
+    <li>The local model handles discovery, comparison and checkout reliably.</li>
+    <li>An agent can be added to UPI Circle as a delegate.</li>
+    <li>Holding funds briefly is a licensing question, to be solved with funding.</li>
+    <li>The virtual card runs on Mastercard, so Agent Pay applies to it.</li>
+  </ul>
+</div>
+
+<hr class="sep">
+
+<h2>Four parties</h2>
+<div class="parties">
+  <div class="pt u"><h3>User</h3><p>Grants authority once. Not present at checkout, by design.</p></div>
+  <div class="pt a"><h3>Agent</h3><p>Local LLM in the appliance. Discovers, compares, builds the cart, asks to pay.</p></div>
+  <div class="pt c"><h3>Virtual card</h3><p>A short-lived credential the agent controls. Holds money for seconds, not days.</p></div>
+  <div class="pt m"><h3>Merchant</h3><p>Accepts a card payment. Needs no new integration.</p></div>
+</div>
+
+<hr class="sep">
+
+<h2>The flow</h2>
+<p>Time runs downward. The red band is the only interval where money sits with the agent.</p>
+
+<div class="figwrap">
+<svg viewBox="0 0 780 610" width="780" height="610" role="img" aria-label="Sequence diagram: the user grants a mandate; the agent builds a cart, draws funds onto a virtual card over UPI, and the card pays the merchant on card rails; residual funds sweep back.">
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,1 L8,4.5 L0,8 z" fill="var(--ink-soft)"/></marker>
+    <marker id="ac" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,1 L8,4.5 L0,8 z" fill="var(--card)"/></marker>
+  </defs>
+
+  <!-- exposure band -->
+  <rect x="30" y="322" width="720" height="150" rx="4" fill="var(--card-wash)"/>
+  <text class="sub" x="742" y="338" text-anchor="end" fill="var(--card)">money is with the agent</text>
+
+  <!-- lanes -->
+  <g>
+    <rect x="40" y="14" width="130" height="30" rx="5" fill="none" stroke="var(--user)"/>
+    <text class="lane" x="105" y="34" text-anchor="middle" fill="var(--user)">User</text>
+    <line x1="105" y1="44" x2="105" y2="576" stroke="var(--rule)" stroke-dasharray="3 4"/>
+
+    <rect x="235" y="14" width="130" height="30" rx="5" fill="none" stroke="var(--agent)"/>
+    <text class="lane" x="300" y="34" text-anchor="middle" fill="var(--agent)">Agent</text>
+    <line x1="300" y1="44" x2="300" y2="576" stroke="var(--rule)" stroke-dasharray="3 4"/>
+
+    <rect x="425" y="14" width="130" height="30" rx="5" fill="none" stroke="var(--card)"/>
+    <text class="lane" x="490" y="34" text-anchor="middle" fill="var(--card)">Virtual card</text>
+    <line x1="490" y1="44" x2="490" y2="576" stroke="var(--rule)" stroke-dasharray="3 4"/>
+
+    <rect x="615" y="14" width="130" height="30" rx="5" fill="none" stroke="var(--merchant)"/>
+    <text class="lane" x="680" y="34" text-anchor="middle" fill="var(--merchant)">Merchant</text>
+    <line x1="680" y1="44" x2="680" y2="576" stroke="var(--rule)" stroke-dasharray="3 4"/>
+  </g>
+
+  <!-- 1 mandate -->
+  <text class="stepn" x="34" y="80">1</text>
+  <line x1="105" y1="90" x2="292" y2="90" stroke="var(--user)" stroke-width="1.5" marker-end="url(#a)"/>
+  <text class="msg" x="198" y="82" text-anchor="middle">grants mandate</text>
+  <text class="sub" x="198" y="104" text-anchor="middle">UPI PIN &middot; the only human step</text>
+
+  <!-- 2 issue card -->
+  <text class="stepn" x="34" y="136">2</text>
+  <line x1="300" y1="146" x2="482" y2="146" stroke="var(--agent)" stroke-width="1.5" marker-end="url(#a)"/>
+  <text class="msg" x="395" y="138" text-anchor="middle">card issued, bound to mandate</text>
+  <text class="sub" x="395" y="160" text-anchor="middle">limits and expiry live in the credential</text>
+
+  <!-- 3 discovery -->
+  <text class="stepn" x="34" y="196">3</text>
+  <path d="M300 190 q54 0 54 16 q0 16 -54 16" fill="none" stroke="var(--agent)" stroke-width="1.5" marker-end="url(#a)"/>
+  <text class="msg" x="368" y="200">discovers, compares, builds the cart</text>
+  <text class="sub" x="368" y="218">local model &middot; no money involved yet</text>
+
+  <!-- 4 intent -->
+  <text class="stepn" x="34" y="258">4</text>
+  <path d="M300 252 q54 0 54 16 q0 16 -54 16" fill="none" stroke="var(--agent)" stroke-width="1.5" marker-end="url(#a)"/>
+  <text class="msg" x="368" y="262">signs an intent for the finished cart</text>
+  <text class="sub" x="368" y="280">₹1,240 &middot; 9 items &middot; merchant named</text>
+
+  <!-- 5 draw -->
+  <text class="stepn" x="34" y="358">5</text>
+  <line x1="292" y1="368" x2="112" y2="368" stroke="var(--agent)" stroke-width="1.5" marker-end="url(#a)"/>
+  <text class="msg" x="198" y="360" text-anchor="middle">draws ₹1,240 against the mandate</text>
+
+  <!-- 6 load -->
+  <text class="stepn" x="34" y="404">6</text>
+  <line x1="105" y1="414" x2="482" y2="414" stroke="var(--card)" stroke-width="2" marker-end="url(#ac)"/>
+  <text class="msg" x="290" y="406" text-anchor="middle" fill="var(--card)">funds load onto the card</text>
+  <text class="sub" x="290" y="428" text-anchor="middle">UPI rail &middot; mandate consumed here</text>
+
+  <!-- 7 pay -->
+  <text class="stepn" x="34" y="452">7</text>
+  <line x1="490" y1="462" x2="672" y2="462" stroke="var(--card)" stroke-width="2" marker-end="url(#ac)"/>
+  <text class="msg" x="581" y="454" text-anchor="middle" fill="var(--card)">card pays the merchant</text>
+  <text class="sub" x="581" y="476" text-anchor="middle">card rail &middot; Agentic Token + Verifiable Intent</text>
+
+  <!-- 8 confirm -->
+  <text class="stepn" x="34" y="506">8</text>
+  <line x1="672" y1="516" x2="312" y2="516" stroke="var(--merchant)" stroke-width="1.5" marker-end="url(#a)"/>
+  <text class="msg" x="492" y="508" text-anchor="middle">order confirmed</text>
+
+  <!-- 9 sweep -->
+  <text class="stepn" x="34" y="552">9</text>
+  <path d="M482 562 L112 562" stroke="var(--settled)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <text class="msg" x="297" y="554" text-anchor="middle" fill="var(--settled)">anything unspent sweeps back</text>
+</svg>
+</div>
+
+<div class="hot">
+  <span class="lbl">The exposure window</span>
+  <p>Steps 6 to 9 are the only time the user's money is not with the user or the
+  merchant. Every risk this design adds lives inside that band, and every mitigation is
+  about making it shorter: load the exact cart total, pay immediately, sweep on failure.</p>
+</div>
+
+<hr class="sep">
+
+<h2>Step by step</h2>
+
+<div class="steps">
+
+  <div class="step"><div class="n">01</div><div>
+    <h3>The user grants a mandate <span class="chip once">once</span><span class="chip upi">UPI</span></h3>
+    <p>In their UPI app, with their PIN. Per-transaction limit, monthly limit, expiry
+    date. This is the only moment a human authenticates anything.</p>
+    <div class="data"><span class="k">per transaction  </span>₹2,000
+<span class="k">per month        </span>₹15,000
+<span class="k">expires          </span>90 days
+<span class="k">delegate         </span>fridge-01 (agent identity)</div>
+  </div></div>
+
+  <div class="step"><div class="n">02</div><div>
+    <h3>A virtual card is issued to the agent <span class="chip once">once</span></h3>
+    <p>Bound to the mandate. The limits live in the credential, so a compromised agent
+    cannot raise them — it can only spend inside what it was already given.</p>
+  </div></div>
+
+  <div class="step"><div class="n">03</div><div>
+    <h3>The agent discovers and builds a cart</h3>
+    <p>Local model. Searches, compares, picks. No money is involved and nothing is
+    committed. If the model gets this wrong, it is a bad cart, not a bad payment.</p>
+  </div></div>
+
+  <div class="step"><div class="n">04</div><div>
+    <h3>The agent signs an intent</h3>
+    <p>A record of the finished cart: items, total, merchant, timestamp. This is what a
+    dispute will later be argued against, so it is signed before any money moves.</p>
+    <div class="data"><span class="k">cart      </span>9 items, ₹1,240
+<span class="k">merchant  </span>bigbasket
+<span class="k">agent     </span>fridge-01
+<span class="k">signed    </span>agent key</div>
+  </div></div>
+
+  <div class="step"><div class="n">05&ndash;06</div><div>
+    <h3>Funds are drawn onto the card <span class="chip upi">UPI</span></h3>
+    <p>Exactly the cart total, not a round number and not a float. The mandate is
+    checked and consumed here. <b>This is where the money leaves the user.</b></p>
+  </div></div>
+
+  <div class="step"><div class="n">07</div><div>
+    <h3>The card pays the merchant <span class="chip card">card rail</span></h3>
+    <p>An ordinary card payment as far as the merchant is concerned — no integration,
+    no new SDK. The authorisation carries an Agentic Token and a Verifiable Intent
+    credential, so the issuer can see this was an agent acting under a human mandate.</p>
+  </div></div>
+
+  <div class="step"><div class="n">08&ndash;09</div><div>
+    <h3>Confirm, then sweep</h3>
+    <p>The merchant confirms. Anything left on the card returns to the user
+    immediately. If step 7 failed, the whole amount returns and the cart is abandoned.</p>
+  </div></div>
+
+</div>
+
+<hr class="sep">
+
+<div class="key">
+  <span class="lbl">Why the second rail is the actual argument</span>
+  <p>The virtual card looks like an inconvenience — an extra hop, an extra balance to
+  worry about. It is doing something more interesting than that.</p>
+  <p><b>UPI has no way to dispute an agent's mistake.</b> NPCI's UDIR system has reason
+  codes for failed, unauthorised and fraudulent transactions. It has no code for "the
+  agent bought the wrong thing." A payment that went exactly where the mandate allowed
+  is, to UPI, a correct payment.</p>
+  <p>Card rails have 120-day chargebacks, a four-stage dispute lifecycle, and — since
+  March 2026 — Mastercard's Verifiable Intent, which cryptographically ties a
+  transaction to the human-approved mandate it was made under.</p>
+  <p><b>So the card is not a wallet. It is a bridge to a rail that has dispute
+  machinery.</b> Fund cheaply on UPI, spend where the recourse lives.</p>
+</div>
+
+<hr class="sep">
+
+<h2>When it goes wrong</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>What fails</th><th>Where the money is</th><th>What happens</th></tr></thead>
+<tbody>
+<tr><td>mandate check</td><td>with the user</td><td>Nothing moves. The cart is abandoned.</td></tr>
+<tr><td>load (step 6)</td><td>with the user</td><td>Nothing moves. Retry or abandon.</td></tr>
+<tr><td>card payment (step 7)</td><td><b>on the card</b></td><td>Sweep returns it. Until the sweep runs, the user is short.</td></tr>
+<tr><td>merchant does not deliver</td><td>with the merchant</td><td>Chargeback on card rails, 120 days.</td></tr>
+<tr><td>agent bought the wrong thing</td><td>with the merchant</td><td>Dispute against the signed intent from step 4, via Verifiable Intent.</td></tr>
+</tbody>
+</table>
+</div>
+
+<hr class="sep">
+
+<h2>Four things to correct later</h2>
+<div class="open">
+<ol>
+  <li><b>Merchant scoping does not survive the hop.</b> On the load, the payee is the
+  card, not the shop — so the mandate can only say "this card", never "this shop". The
+  simulation demonstrates this: a payment reaches a merchant that the same mandate
+  refuses when paid directly. If scoping matters, it has to move onto the card leg.</li>
+
+  <li><b>Liability for agent disputes is not settled.</b> As of mid-2026 neither card
+  network has published a binding chargeback rule for a dispute an agent started, and
+  the one specification that addresses it in writing assigns the loss to the merchant.
+  The recourse this design is built around is real but untested. <code>SECONDARY</code></li>
+
+  <li><b>Agent Pay is not self-serve.</b> It needs issuer enablement, acquirer
+  integration and network provisioning. There is no sandbox to build against today, and
+  pricing is not published. Fine for a simulation; a real obstacle after that.</li>
+
+  <li><b>UPI Circle may be the wrong primitive.</b> Circle delegates to a person who
+  authenticates biometrically, capped at ₹5,000 per payment and ₹15,000 a month, with
+  no merchant scoping. Reserve Pay is the closer fit, and it is what Pine Labs chose for
+  P3P in June.</li>
+</ol>
+</div>
+
+</div>
+</body>
+</html>
