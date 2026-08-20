@@ -101,6 +101,23 @@ em{font-style:italic}
 .note{font-size:.86rem;color:var(--faint);margin-top:1.6rem;max-width:42rem}
 .note code{font-family:"Roboto Mono",monospace;font-size:.9em}
 
+.filter3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.4rem}
+@media(max-width:820px){.filter3{grid-template-columns:1fr}}
+.f3{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1.2rem 1.3rem;border-top:3px solid var(--amber)}
+.f3 h3{font-family:"Bricolage Grotesque",sans-serif;font-size:1.05rem;font-weight:700;margin-bottom:.35rem}
+.f3 p{font-size:.94rem;color:var(--soft);margin:0}
+
+.tier{margin-top:1.2rem}
+.tier h3{font-family:"Roboto Mono",monospace;font-size:.72rem;text-transform:uppercase;
+  letter-spacing:.11em;color:var(--faint);font-weight:500;margin:1.1rem 0 .5rem}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.7rem}
+.uc{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.85rem 1rem}
+.uc.now{border-left:3px solid var(--go)}
+.uc.soon{border-left:3px solid var(--amber)}
+.uc.later{border-left:3px solid var(--faint);opacity:.78}
+.uc b{font-family:"Bricolage Grotesque",sans-serif;font-size:.95rem;font-weight:700;display:block}
+.uc span{font-size:.83rem;color:var(--soft);display:block;margin-top:.15rem}
+
 .flowwrap{overflow-x:auto;margin-top:1.3rem}
 .flow{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
 @media(max-width:820px){.flow{grid-template-columns:1fr}}
@@ -297,28 +314,76 @@ em{font-style:italic}
 
 <!-- 8 -->
 <section class="slide"><span class="n">08</span><div class="inner">
-  <p class="kicker">What we are</p>
-  <h2>Not a rail. Not a wallet. The check and the receipt.</h2>
-  <div class="two">
-    <div class="box hot">
-      <h3>Before the money moves</h3>
-      <p>Does this payment match what the owner approved? Amount, merchant, basket,
-      freshness. Arithmetic only — no model in the approval path, because a bank cannot
-      refuse a payment on a probability.</p>
-    </div>
-    <div class="box hot">
-      <h3>After the money moves</h3>
-      <p>One signed record binding the mandate, the basket, and both payment legs. The
-      thing a dispute needs and neither rail keeps.</p>
-    </div>
+  <p class="kicker">Which machines need us</p>
+  <h2>Three conditions. All three, or the check is worth nothing.</h2>
+  <div class="filter3">
+    <div class="f3"><h3>The amount varies</h3>
+      <p>If the machine always pays the same ₹499, a spend cap already covers it.
+      Our check earns its place when the price is not known in advance.</p></div>
+    <div class="f3"><h3>Nobody is watching</h3>
+      <p>No screen, no person, no confirmation step. If a human approves each
+      purchase, the human is the check.</p></div>
+    <div class="f3"><h3>Wrong costs real money</h3>
+      <p>A ₹40 mistake is a nuisance. A ₹4,000 mistake is a support ticket, a
+      chargeback, and a customer who unplugs the device.</p></div>
   </div>
-  <p style="margin-top:1.5rem">The owner gets an app: what each machine bought, what it
-  was told to buy, and one button that switches it off — killing the card token,
-  stopping future funding, and returning anything unspent.</p>
+  <p class="big" style="margin-top:1.6rem">This is why fixed-price subscription
+  reorder &mdash; printer ink at a set rate &mdash; is <strong>not</strong> our market.
+  There is nothing to check. We look for machines that <em>choose</em>.</p>
 </div></section>
 
 <!-- 9 -->
 <section class="slide"><span class="n">09</span><div class="inner">
+  <p class="kicker">Where the machines are</p>
+  <h2>Start where they already transact.</h2>
+
+  <div class="tier">
+    <h3>Live in India today &middot; a machine already picks and pays</h3>
+    <div class="grid4">
+      <div class="uc now"><b>EV charging</b><span>Price varies by station and time.
+        Already an eligible ReservePay category &mdash; NPCI built the primitive for this.</span></div>
+      <div class="uc now"><b>Battery swapping</b><span>Two- and three-wheeler networks.
+        High frequency, small tickets, driver never handles payment.</span></div>
+      <div class="uc now"><b>Water tanker delivery</b><span>Apartment tank runs low.
+        Several suppliers, prices move daily, nobody is home.</span></div>
+      <div class="uc now"><b>Diagnostic analysers</b><span>Reagents and consumables.
+        High value, recurring, and a wrong order stops a lab.</span></div>
+    </div>
+  </div>
+
+  <div class="tier">
+    <h3>Near term &middot; the machine exists, the payment does not</h3>
+    <div class="grid4">
+      <div class="uc soon"><b>Water purifiers</b><span>Filter cartridges on usage, not
+        a calendar. Tens of millions of units installed.</span></div>
+      <div class="uc soon"><b>Vending &amp; micro-markets</b><span>The machine reorders
+        its own stock from the supplier.</span></div>
+      <div class="uc soon"><b>Fleet fuel &amp; tolls</b><span>Vehicles buying diesel
+        and passage against a fleet mandate.</span></div>
+      <div class="uc soon"><b>Industrial consumables</b><span>Tooling, lubricants,
+        spares reordered off machine telemetry.</span></div>
+      <div class="uc soon"><b>LPG &amp; DG fuel</b><span>Smart regulator books the
+        refill before the cylinder runs out.</span></div>
+      <div class="uc soon"><b>Agri IoT</b><span>Soil and moisture sensors triggering
+        input orders at the right window.</span></div>
+    </div>
+  </div>
+
+  <div class="tier">
+    <h3>The flagship story &middot; install base not here yet</h3>
+    <div class="grid4">
+      <div class="uc later"><b>Smart fridges</b><span>Groceries on stock level.</span></div>
+      <div class="uc later"><b>Voice assistants</b><span>Household reorder on request.</span></div>
+      <div class="uc later"><b>Washing machines</b><span>Detergent by cycle count.</span></div>
+    </div>
+  </div>
+
+  <p class="note">No segment sizing in this deck. If asked, say we have not sized it
+  &mdash; do not improvise a number.</p>
+</div></section>
+
+<!-- 10 -->
+<section class="slide"><span class="n">10</span><div class="inner">
   <p class="kicker">Why us</p>
   <h2>We built it, and it broke in four places nobody has written down.</h2>
   <div class="finds">
@@ -341,8 +406,8 @@ em{font-style:italic}
   looks like.</p>
 </div></section>
 
-<!-- 10 -->
-<section class="slide"><span class="n">10</span><div class="inner">
+<!-- 11 -->
+<section class="slide"><span class="n">11</span><div class="inner">
   <p class="kicker">Both, always</p>
   <h2>The device maker integrates once. Their customer picks the rail.</h2>
   <p class="big">Not a phased rollout and not a hedge. Two funding methods, offered
@@ -373,8 +438,8 @@ em{font-style:italic}
   needs capital. That shapes which one we can ship first, not which one we offer.</p>
 </div></section>
 
-<!-- 11 -->
-<section class="slide"><span class="n">11</span><div class="inner">
+<!-- 12 -->
+<section class="slide"><span class="n">12</span><div class="inner">
   <p class="kicker">The objection you are about to make</p>
   <h2>"Why doesn't Pine Labs just add this?"</h2>
   <p class="big">Because a rail that adjudicates disputes about its own payments is a
@@ -386,8 +451,8 @@ em{font-style:italic}
   nothing to defend.</p>
 </div></section>
 
-<!-- 12 -->
-<section class="slide"><span class="n">12</span><div class="inner">
+<!-- 13 -->
+<section class="slide"><span class="n">13</span><div class="inner">
   <p class="kicker">Honest risks</p>
   <h2>Three things that could sink this.</h2>
   <div class="two">
@@ -410,8 +475,8 @@ em{font-style:italic}
   </div>
 </div></section>
 
-<!-- 13 -->
-<section class="slide"><span class="n">13</span><div class="inner">
+<!-- 14 -->
+<section class="slide"><span class="n">14</span><div class="inner">
   <p class="kicker">The ask</p>
   <h2>What we need from this room.</h2>
   <div class="ask">
@@ -430,7 +495,7 @@ em{font-style:italic}
 
 <div class="nav">
   <button onclick="go(-1)" aria-label="Previous">&larr;</button>
-  <span id="pos">1 / 13</span>
+  <span id="pos">1 / 14</span>
   <button onclick="go(1)" aria-label="Next">&rarr;</button>
 </div>
 
