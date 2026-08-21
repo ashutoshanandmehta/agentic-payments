@@ -7,25 +7,22 @@
 %
 %  Compile: pdflatex project-brief-crypto.tex  (twice)
 %==============================================================================
-\documentclass[11pt,a4paper]{article}
+\documentclass[journal,onecolumn,11pt]{IEEEtran}
 
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[margin=1.05in]{geometry}
+\usepackage[a4paper,margin=1in]{geometry}
 \usepackage{booktabs}
 \usepackage{enumitem}
 \usepackage{xcolor}
 \usepackage{amsmath,amssymb}
 \usepackage{url}
-\usepackage{titlesec}
 \usepackage[hidelinks]{hyperref}
 
 \newcommand{\rs}{Rs.\,}
 \definecolor{accent}{HTML}{0D5C66}
 \definecolor{warnc}{HTML}{8A5A10}
 
-\titleformat{\section}{\large\bfseries\color{accent}}{\thesection}{0.6em}{}
-\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
 
 \newenvironment{keybox}
   {\begin{quote}\color{accent}\rule{\linewidth}{0.8pt}\vspace{-0.4em}\begin{itshape}}
@@ -33,11 +30,12 @@
 
 \newcommand{\q}[1]{\textcolor{warnc}{\textbf{Open question.}} #1}
 
-\title{\vspace{-2em}\textbf{Trusted Delegated Payments for Autonomous Agents}\\
+\title{Trusted Delegated Payments for Autonomous Agents\\
 \large A project brief, written for a cryptographer}
+
 \author{Ashutosh Anand\\
-\small IIT Kanpur \quad$\cdot$\quad Supervisor: Prof.\ Vimal Kumar}
-\date{21 August 2026}
+\textit{Indian Institute of Technology Kanpur}\\
+Supervisor: Prof.\ Vimal Kumar \quad$\cdot$\quad 21 August 2026}
 
 \begin{document}
 \maketitle
@@ -56,10 +54,15 @@ Section~\ref{sec:crypto} is where I think your area and this problem genuinely m
 it is the part I would most like your reaction to.
 \end{abstract}
 
+\begin{IEEEkeywords}
+Delegated authorisation, agent attestation, trusted execution, secure computation,
+private information retrieval, payment mandates, UPI, revocation.
+\end{IEEEkeywords}
+
 \section{What the project is}
 
-An AI agent embedded in a device---an appliance, a vehicle charger, a diagnostic
-instrument---detects that it needs something and buys it. Nobody is watching. The owner
+\IEEEPARstart{A}{n} AI agent embedded in a device---an appliance, a vehicle charger, a
+diagnostic instrument---detects that it needs something and buys it. Nobody is watching. The owner
 approved a spending arrangement weeks ago and is not present at the moment of payment.
 
 The project builds the layer that decides whether such a payment should proceed, and
