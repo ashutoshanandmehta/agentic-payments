@@ -1,0 +1,437 @@
+%==============================================================================
+%  Project brief for Prof. Adithya Vadapalli
+%  Trusted delegated payments for autonomous agents
+%
+%  Written for a cryptographer who does not work on payments. Section 2 is the
+%  payments background; everything after it assumes that and nothing more.
+%
+%  Compile: pdflatex project-brief-crypto.tex  (twice)
+%==============================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1.05in]{geometry}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{amsmath,amssymb}
+\usepackage{url}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\rs}{Rs.\,}
+\definecolor{accent}{HTML}{0D5C66}
+\definecolor{warnc}{HTML}{8A5A10}
+
+\titleformat{\section}{\large\bfseries\color{accent}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
+
+\newenvironment{keybox}
+  {\begin{quote}\color{accent}\rule{\linewidth}{0.8pt}\vspace{-0.4em}\begin{itshape}}
+  {\end{itshape}\vspace{-0.2em}\rule{\linewidth}{0.8pt}\end{quote}}
+
+\newcommand{\q}[1]{\textcolor{warnc}{\textbf{Open question.}} #1}
+
+\title{\vspace{-2em}\textbf{Trusted Delegated Payments for Autonomous Agents}\\
+\large A project brief, written for a cryptographer}
+\author{Ashutosh Anand\\
+\small IIT Kanpur \quad$\cdot$\quad Supervisor: Prof.\ Vimal Kumar}
+\date{21 August 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent This brief exists because you asked a question I could not answer properly in
+conversation: \emph{a credential can be stored locally, but how does that let you verify
+the agent, tell it apart from a bad one, and call it trusted?}
+
+Section~\ref{sec:verify} is the honest answer, and it is more interesting than I first
+thought, because the answer is partly negative. Sections~\ref{sec:bg}
+and~\ref{sec:proto} are the payments background needed to make that answer meaningful:
+no prior payments knowledge is assumed, and I have tried to describe each mechanism in
+terms of what it actually guarantees rather than what its marketing says.
+Section~\ref{sec:crypto} is where I think your area and this problem genuinely meet, and
+it is the part I would most like your reaction to.
+\end{abstract}
+
+\section{What the project is}
+
+An AI agent embedded in a device---an appliance, a vehicle charger, a diagnostic
+instrument---detects that it needs something and buys it. Nobody is watching. The owner
+approved a spending arrangement weeks ago and is not present at the moment of payment.
+
+The project builds the layer that decides whether such a payment should proceed, and
+produces the evidence needed afterwards if it should not have.
+
+\begin{keybox}
+Every payment rail now shipping for agents enforces \emph{how much} an agent may spend.
+None verifies \emph{what it actually bought}.
+\end{keybox}
+
+Concretely: a mandate authorising \rs 2{,}000 per purchase will happily authorise a
+\rs 600 charge against a basket the owner approved at \rs 118. No limit is violated. No
+rule is broken. The owner is overcharged by \rs 482 and the dispute system has no
+category to file it under. I have this running in a simulator; it is two commands.
+
+\subsection{Scope}
+The work begins when the basket is complete and the agent requests payment, and ends
+when the money has moved and the evidence is recorded. Product discovery, price
+comparison and supplier choice are upstream and out of scope. Restricting to
+\emph{repetitive} purchases---reordering the same consumable---is what makes advance
+authorisation meaningful, because the owner can approve a pattern even though they
+cannot approve each instance.
+
+\section{Payments background}\label{sec:bg}
+
+This section assumes nothing about payments. Skip it if any of it is familiar.
+
+\subsection{UPI}
+UPI (Unified Payments Interface) is India's real-time retail payment system, operated by
+NPCI, a not-for-profit consortium of banks. A user is addressed by a \emph{virtual
+payment address} (VPA) such as \texttt{name@bank}, which resolves to a bank account. A
+payment is a message routed through a central switch that debits one bank and credits
+another, settling in seconds.
+
+Two properties matter here. First, UPI is \textbf{zero-MDR} for most merchant
+transactions---there is no interchange fee, which removes the usual revenue model.
+Second, authentication is by a 4- or 6-digit \emph{UPI PIN} entered on a device bound to
+the user, and the security model assumes \textbf{a human is present}.
+
+\subsection{Mandates}
+A mandate is standing authorisation to debit an account without fresh authentication
+each time. Two variants matter.
+
+\textbf{UPI Autopay} is a recurring mandate bound to one payee, one amount ceiling, and
+a schedule. It is built for subscriptions. It cannot express ``pay whichever supplier
+turns out to be cheapest,'' because the payee is fixed at creation.
+
+\textbf{UPI Reserve Pay}, formally \emph{Single Block Multiple Debits}, blocks funds in
+the user's own account, and a merchant then debits against that blocked pool repeatedly
+until it is exhausted or expires. Ceiling \rs 10{,}000, validity 90 days, and---this is
+the constraint that shapes the architecture---\textbf{one active block per merchant per
+customer}.
+
+The security-relevant fact: \textbf{authentication happens once, at block creation.}
+Every debit afterwards is unauthenticated by the human. The rail has no field
+identifying who or what initiated a debit, so it cannot distinguish an agent from a
+person.
+
+\subsection{Cards, and why they differ}
+Card networks have spent two decades building an adversarial infrastructure that UPI has
+not needed: tokenisation, network-side authorisation policy, and a formal dispute
+process with defined liability shifts and a 120-day chargeback window.
+
+\emph{Tokenisation} replaces a card number with a network-issued token scoped to a
+context---this is what Apple Pay does. The token is a reference, not a bearer
+instrument: it holds no value and de-tokenises inside the network to the real account.
+
+\subsection{The asymmetry that defines the architecture}
+UPI is cheap, ubiquitous in India, and has no notion of an agent. Cards are expensive,
+have network-enforced scoping, carry an agent identifier, and possess a dispute process.
+
+The system therefore spans both, and the owner chooses which funds a given agent.
+
+\section{The protocol landscape}\label{sec:proto}
+
+Four systems shipped in the last eighteen months. I describe each by what it
+cryptographically guarantees.
+
+\subsection{AP2 (Google, September 2025)}
+Defines three signed artifacts as W3C Verifiable Credentials: an \emph{Intent Mandate}
+(what the user asked for), a \emph{Cart Mandate} (what the agent selected), and a
+\emph{Payment Mandate}. Guarantees non-repudiation of each artifact. Notably, it defines
+the envelope but \textbf{not a constraint language for what goes inside it}, so
+``does the cart satisfy the intent'' is left unspecified.
+
+\subsection{Mastercard Agent Pay and Verifiable Intent}
+\emph{Agentic Tokens} extend card tokenisation with an agent identifier and a scope
+object---spend caps, merchant categories, expiry---validated \textbf{network-side at
+every authorisation}. \emph{Verifiable Intent}, open-sourced March 2026, is a credential
+travelling with the authorisation that cryptographically links the transaction to the
+human mandate behind it.
+
+Mastercard's framing of the agent problem is called \emph{Know Your Agent}, and it asks
+three questions that map exactly onto yours: is the controlling human verified, are the
+agent's keys in TEE hardware, and is the delegation scope well defined.
+
+\subsection{P3P (Pine Labs, June 2026)}
+The closest system to this project, and live in production. Runs agentic payments over
+UPI Reserve Pay using HTTP 402, with an identity and delegation layer called
+\emph{Grantex} supplying agent identity, spend limits and an audit trail.
+
+\q{Its public documentation stops at a quickstart and does not describe any binding
+between a payment and an approved order. If such a binding exists, a substantial part of
+this project's contribution is already taken. Resolving this is the highest-priority
+open item.}
+
+\subsection{x402 and MPP}
+Both revive HTTP status code 402. x402 (Coinbase) settles USDC on-chain via EIP-3009
+gasless authorisations verified by a facilitator. MPP (Stripe and Tempo) is a general
+HTTP authentication scheme, on an IETF track, with payment methods defined as separate
+specifications.
+
+Both solve \emph{paying for an HTTP resource}, where the thing purchased \emph{is} the
+request. Neither needs an order record, because there is no basket. They are adjacent,
+not competing.
+
+\section{Agent verification: the answer to your question}\label{sec:verify}
+
+You observed that a credential can be stored locally, and asked how that lets us verify
+the agent, distinguish it from a bad agent, and treat it as trusted.
+
+The short answer is that a local credential gives \textbf{one} of the four properties we
+need, and the fourth is not obtainable by cryptographic means at all. Separating them is
+most of the work.
+
+\subsection{Four distinct properties}
+
+\paragraph{1. Authentication --- which key signed this?}
+An Ed25519 keypair held by the agent, signing each request. Establishes that
+\emph{something holding that key} produced the message.
+
+This is what a locally stored credential gives you, and it is genuinely necessary. It is
+also the weakest of the four. Against an adversary with host access it establishes
+nothing, because a software key can be read out of memory and used elsewhere. An agent
+authenticated this way is indistinguishable from an attacker who copied its key.
+
+\paragraph{2. Binding --- is the key where we think it is?}
+Generate and hold the key in a hardware-isolated environment: a TEE (ARM TrustZone,
+Intel TDX, AMD SEV-SNP), a Secure Enclave, or a TPM. The private key never leaves; the
+environment performs signatures on request.
+
+This upgrades the claim from \emph{something has the key} to \emph{something on this
+specific device has the key}. Key extraction now requires defeating the hardware. This
+is what Mastercard's KYA framework is asking about when it asks whether agent keys are
+in TEE hardware.
+
+\paragraph{3. Attestation --- what code is running?}
+The interesting one. A TEE can produce a signed \emph{quote} containing a measurement
+(a hash) of the code loaded into it, signed by a key rooted in the hardware
+manufacturer's PKI. A remote verifier checks the signature chain and compares the
+measurement against a known-good value.
+
+This gives what authentication cannot: evidence that \emph{this specific software build}
+is running, unmodified, in genuine hardware. It is the mechanism that separates a
+legitimate agent from a modified one.
+
+It requires a \textbf{registry}: a measurement is only meaningful if someone publishes
+that measurement $m$ corresponds to approved agent build $B$. This is precisely what
+NPCI's proposed Unified Agent Protocol and Mastercard's KYA are reaching for, and
+neither has shipped a specification.
+
+\paragraph{4. Correctness --- did the agent do the right thing?}
+Here the stack stops helping, and this is the part I find genuinely interesting.
+
+\begin{keybox}
+Attestation of an AI agent certifies strictly less than attestation of a deterministic
+program, because the same attested binary produces different behaviour depending on
+input the attestation does not cover.
+\end{keybox}
+
+An attested, unmodified, correctly-keyed agent reads a supplier's product description
+which contains adversarial text, and buys the wrong thing. Every cryptographic property
+above holds. The measurement is correct. The signature verifies. The hardware is genuine.
+The purchase is wrong.
+
+Attestation covers the code and, at best, the model weights. It does not and cannot
+cover the inference, because the inference depends on runtime input from an untrusted
+source. For a conventional program we would call that input validation and push it
+inside the measured boundary. For an agent whose entire purpose is to consume untrusted
+text and act on it, that move is unavailable.
+
+\subsection{The consequence for the architecture}
+Because property 4 is unreachable by attestation, it has to be obtained structurally:
+\textbf{constrain what the agent is permitted to do, so that being wrong is not
+sufficient to cause loss.}
+
+This is the project's central mechanism. The owner signs a constraint in advance. Before
+settlement, a deterministic check tests whether the requested payment satisfies that
+constraint. A compromised agent can still request anything; it cannot obtain settlement
+of a request that fails the check.
+
+Two design rules follow, both non-obvious enough that I got them wrong first:
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Enforcement must sit outside the agent's trust boundary.} If the limit is
+checked by the agent, an injected agent moves the limit. It is checked by a party the
+agent cannot influence.
+\item \textbf{The check must be deterministic.} No model participates in the approval
+path. An issuer cannot decline a payment on a probability---it needs a reason that can
+be stated in a dispute. This also means the check itself cannot be attacked by the same
+class of adversary.
+\end{enumerate}
+
+\subsection{An empirical result that surprised me}
+I implemented the order as a signed artifact and tested three signing arrangements:
+signed by the agent, by the merchant, and by both.
+
+\textbf{All three approve a self-consistent inflated order.} If the line items genuinely
+sum to \rs 600 and the signature verifies, nothing in the system objects---because the
+order is the only surviving record of what was agreed, so there is nothing to compare it
+against. What refuses it is a per-payment ceiling close to the expected basket size.
+
+The lesson generalises, and it is the same lesson as your question one layer up:
+\textbf{a signature establishes authorship, not truth.} I found this useful discipline
+for thinking about the rest of the design.
+
+\section{Where I think your work and this problem meet}\label{sec:crypto}
+
+Sections~\ref{sec:bg}--\ref{sec:verify} are mostly systems engineering. This section is
+what I think is actually research, and all of it is closer to your area than mine.
+
+\subsection{Problem A --- the evidence trail is a surveillance database}
+To settle disputes, the system records what every machine bought, bound to an owner
+identity, indefinitely. That is a comprehensive record of a household's or a firm's
+consumption, held by an operator with a commercial interest in it.
+
+For a dispute we need to reveal \textbf{one purchase to one arbiter}. Everything else
+should remain hidden---from the arbiter, from the merchant, and ideally from the
+operator holding the log.
+
+\q{Can the dispute evidence be constructed so that the owner can prove a specific
+payment violated a specific mandate, revealing neither the mandate's other terms nor any
+other purchase, and without the operator holding a readable history?}
+
+This looks like selective disclosure over a commitment---a Merkle-committed log with
+zero-knowledge membership and predicate proofs, or anonymous-credential techniques
+applied to the mandate. I do not know which is right, or whether the verification cost
+is compatible with an authorisation path that must complete in well under a second.
+
+\subsection{Problem B --- checking a mandate without learning it}
+Today the operator sees both the mandate and the order, because it must evaluate one
+against the other. That is a large amount of trust placed in a party that has no
+business knowing what a household buys.
+
+The check itself is arithmetic and narrow: a comparison against an amount ceiling,
+membership in a merchant set, membership in a category set, a period-budget subtraction,
+and a validity window. These are exactly the primitives secure computation handles well.
+
+\q{Can the order check run as a two-party computation between the agent's host and the
+verifier, so that the verifier learns only the boolean verdict and neither party learns
+the other's input?}
+
+The merchant allow-list is a private set membership query, which is where I suspect your
+distributed point function work is directly applicable. The realistic obstacle is
+latency: an authorisation decision has a budget of roughly 150\,ms end to end, and I do
+not know what is achievable in that envelope for a set of realistic size.
+
+\subsection{Problem C --- revocation}
+An owner revokes an agent. Revocation must reach two rails and any funds already in
+flight, and---critically---a verifier must be able to establish \emph{at authorisation
+time} that a credential is still valid.
+
+Naive approaches leak: a status query reveals which agent is transacting and when. This
+is the classic tension between revocation freshness, verification cost, and privacy,
+which accumulators and short-lived credentials attack from different directions.
+
+\q{What revocation construction gives sub-second freshness without the status check
+itself becoming a tracking channel?}
+
+There is also a timing question with real liability attached: if the owner revokes at
+$t$ and a payment authorises at $t+\epsilon$, who bears the loss? The system currently
+produces a signed, timestamped revocation record so the question is at least decidable,
+but the correct construction is not obvious to me.
+
+\subsection{Problem D --- metadata}
+Even with contents hidden, the pattern leaks: purchase frequency, timing, amount
+distribution, and the identity of the settling merchant. For a household this reveals
+occupancy, travel and health. This is your listed interest in metadata protection,
+applied to a setting where the observer is a regulated financial intermediary that
+cannot simply be removed.
+
+\subsection{Honest assessment of the split}
+The order check, the two-rail architecture, the reconciliation logic and the control
+surface are engineering. They are substantial and they work, but they are not research
+and I would not claim otherwise.
+
+Problems A through D are research, and I cannot do them alone. That is the reason for
+asking you.
+
+\section{Threat model}
+
+\subsection{Assumed capabilities}
+\begin{itemize}[leftmargin=*]
+\item \textbf{The agent may be compromised at runtime} by adversarial input. This is
+assumed, not defended against. Prompt injection is unsolved and the design does not
+claim to prevent it.
+\item \textbf{The merchant is adversarial.} It controls all product data reaching the
+agent and has a direct financial incentive to influence selection.
+\item \textbf{The operator is honest-but-curious.} It follows the protocol and would
+like to learn what everyone buys. Problems A and B exist to reduce what it can learn.
+\item \textbf{Rails are trusted for correctness}, not for privacy.
+\end{itemize}
+
+\subsection{Security goals}
+\begin{enumerate}[leftmargin=*]
+\item A compromised agent cannot obtain settlement of a payment violating the owner's
+signed constraint.
+\item Every settled payment yields evidence sufficient to adjudicate a dispute.
+\item Revocation is effective across both rails and any funds in flight.
+\item \emph{(Target, not achieved)} No party learns more about the owner's purchasing
+than its role requires.
+\end{enumerate}
+
+Goal 4 is the research contribution. Goals 1--3 are built and tested.
+
+\section{What exists today}
+
+A simulator with UPI-shaped rails: a double-entry ledger where postings must sum to
+zero, a two-leg payment with a suspense account between the legs, injectable failures, a
+reconciliation sweep, Ed25519-signed authority and order records, the deterministic
+order check, cross-rail virtual-card settlement, revocation, and an owner console. 69
+tests, no network dependency.
+
+Four results the implementation produced, each asserted by a test rather than argued:
+
+\begin{enumerate}[leftmargin=*]
+\item Signatures on an order do not prevent overcharging, under any signer arrangement.
+\item Routing funds through an agent-controlled card destroys merchant scoping on the
+funding leg, because the mandate can then only name the card.
+\item A failed-and-refunded purchase permanently consumes the owner's periodic budget
+unless headroom is explicitly released on reversal.
+\item Revocation is three operations; implementations typically perform one.
+\end{enumerate}
+
+\section{What I would like from you}
+
+Not answers---you were clear that you would not have them, and the interesting parts do
+not have known answers.
+
+What would help most: a judgement on whether Problems A through D are the right
+formulations, or whether I have stated tractable-looking versions of problems that are
+either trivial or hopeless. I cannot tell from inside.
+
+After that, whichever of the four you find most interesting is the one I would rather
+work on, because a supervisor engaged with the problem is worth more than a problem I
+picked alone.
+
+\section*{Reading, if useful}
+
+\textbf{Payments, in order of usefulness}
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+\item NPCI Operating Circular 228, on Reserve Pay --- the primitive everything sits on.
+\item Google, \emph{Agent Payments Protocol (AP2)} --- \url{https://ap2-protocol.org}
+\item Mastercard, \emph{Agent Pay and the agentic token framework} --- the KYA questions
+in \S\ref{sec:verify} come from here.
+\item Pine Labs, \emph{P3P} --- \url{https://www.pinelabs.com/docs/online-payments/ai/p3p}
+\end{itemize}
+
+\textbf{Adjacent to your area}
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+\item W3C Verifiable Credentials Data Model --- the artifact format AP2 uses.
+\item Remote attestation literature for TDX and SEV-SNP --- for \S\ref{sec:verify},
+property 3.
+\item \texttt{arXiv:2604.15367}, on unverified instruction origin after mandate
+creation --- establishes that the observation is known, so only a mechanism counts as a
+contribution.
+\end{itemize}
+
+\vspace{1em}
+\noindent\rule{\linewidth}{0.4pt}\\
+\small Code and full documentation are available; the simulator runs offline with one
+dependency. I am happy to walk through any part of it, and would rather be told early
+that a direction is wrong than discover it at the end.
+
+\end{document}
