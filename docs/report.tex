@@ -32,6 +32,8 @@
 \definecolor{lnHot}{HTML}{FBEAE6}
 \definecolor{lnSweep}{HTML}{237A4C}
 \definecolor{lnGrey}{HTML}{7A8087}
+\definecolor{lnCtl}{HTML}{0D5C66}
+\definecolor{lnNet}{HTML}{8A5A10}
 
 \newcommand{\rs}{Rs.\,}
 
@@ -286,7 +288,10 @@ This is the argument for the components constituting a purchasable product rathe
 three separable features.
 
 \section{Architecture}\label{sec:arch}
-Figure~\ref{fig:seq} traces a single purchase end to end across both rails.
+Figure~\ref{fig:seq} traces a purchase funded over UPI; Figure~\ref{fig:seqcard}
+traces the same purchase funded by card. They are not the same flow on two pipes---the
+UPI path is pre-funded and holds money briefly with the agent, while the card path
+routes a token and holds nothing.
 
 
 \begin{figure}[t]
@@ -368,6 +373,75 @@ funds belong to neither the owner nor the merchant.}
 \label{fig:seq}
 \end{figure}
 
+
+\begin{figure}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[x=1.12cm,y=1.05cm,font=\small,
+  >={Stealth[length=2.2mm]},
+  lane/.style={draw,rounded corners=2pt,inner xsep=5pt,inner ysep=4pt,font=\small\bfseries},
+  life/.style={densely dashed,lnGrey!60},
+  msg/.style={->,thick},
+  cap/.style={font=\scriptsize,text=black},
+  sub/.style={font=\scriptsize\ttfamily,text=lnGrey}]
+
+\node[lane,draw=lnUser, text=lnUser] (U) at (0,0)    {User};
+\node[lane,draw=lnAgent,text=lnAgent](A) at (3.4,0)  {Agent};
+\node[lane,draw=lnCtl,  text=lnCtl]  (K) at (6.9,0)  {Control layer};
+\node[lane,draw=lnNet,  text=lnNet]  (N) at (10.4,0) {Issuer + network};
+\node[lane,draw=lnMerch,text=lnMerch](M) at (13.8,0) {Merchant};
+\foreach \x in {0,3.4,6.9,10.4,13.8} \draw[life] (\x,-0.42) -- (\x,-10.4);
+
+\node[sub] at (-1.15,-1.15) {1};
+\draw[msg,lnUser] (0,-1.15) -- (6.8,-1.15);
+\node[cap,above] at (3.4,-1.1)  {enrols a card, once};
+\node[sub,below] at (3.4,-1.22) {biometric ID\&V $\cdot$ passkey bound};
+
+\node[sub] at (-1.15,-2.2) {2};
+\draw[msg,lnCtl] (6.9,-2.2) -- (10.3,-2.2);
+\node[cap,above] at (8.6,-2.15)  {requests a token for this agent};
+
+\node[sub] at (-1.15,-3.25) {3};
+\draw[msg,lnNet] (10.4,-3.25) -- (3.5,-3.25);
+\node[cap,above] at (7,-3.2)  {Agentic Token issued};
+\node[sub,below] at (7,-3.32) {MDES $\cdot$ agent id, caps, categories, expiry};
+
+\node[sub] at (-1.15,-4.4) {4};
+\draw[msg,lnAgent] (3.4,-4.2) -- (4.3,-4.2) -- (4.3,-4.65) -- (3.4,-4.65);
+\node[cap,anchor=west] at (4.5,-4.25)  {builds the cart, signs an intent};
+\node[sub,anchor=west] at (4.5,-4.63)  {local model $\cdot$ no money involved yet};
+
+\node[sub] at (-1.15,-5.5) {5};
+\draw[msg,lnAgent] (3.4,-5.5) -- (6.8,-5.5);
+\node[cap,above] at (5.15,-5.45) {order + payment request};
+
+\node[sub] at (-1.15,-6.6) {6};
+\draw[msg,lnCtl,very thick] (6.9,-6.4) -- (7.8,-6.4) -- (7.8,-6.85) -- (6.9,-6.85);
+\node[cap,anchor=west] at (8,-6.45) {\textbf{order check} --- deterministic, pre-settlement};
+\node[sub,anchor=west] at (8,-6.83) {refuse here and nothing reaches a rail};
+
+\node[sub] at (-1.15,-7.6) {7};
+\draw[msg,lnCtl] (6.9,-7.6) -- (13.7,-7.6);
+\node[cap,above] at (10.3,-7.55) {token presented at checkout};
+\node[sub,below] at (10.3,-7.72) {+ Verifiable Intent credential};
+
+\node[sub] at (-1.15,-8.6) {8};
+\draw[msg,lnMerch] (13.8,-8.6) -- (10.5,-8.6);
+\node[cap,above] at (12.1,-8.55) {authorisation request};
+\node[sub,below] at (12.1,-8.72) {network validates scope};
+
+\node[sub] at (-1.15,-9.6) {9};
+\draw[msg,lnNet,very thick] (10.4,-9.6) -- (13.7,-9.6);
+\node[cap,above] at (12.05,-9.55) {cardholder pays merchant};
+\node[sub,below] at (12.05,-9.72) {funds never rest anywhere};
+
+\end{tikzpicture}}
+\caption{The card rail. There is no virtual card and no float: the Agentic Token is a
+reference to the owner's card, and money moves once, directly. Compare
+Figure~\ref{fig:seq}, where steps~5--7 hold funds with the agent.}
+\label{fig:seqcard}
+\end{figure}
+
 Two funding rails are offered concurrently; the owner selects one per agent. The
 control layer is identical in both cases. Their properties differ substantially
 (Table~\ref{tab:rails}).
@@ -399,6 +473,63 @@ order check. On cards, the network already supplies the first two.
 \textbf{The order check is the invariant, and it is the only component absent from
 both rails.} This observation determines the product boundary: everything else is
 rail-specific scaffolding.
+
+\subsection{Where each protocol operates}\label{sec:protomap}
+Nothing in Table~\ref{tab:protomap} is proposed by this work. The contribution is the
+row marked \emph{ours}, and the fact that the rest is consumed rather than reinvented.
+
+\begin{table}[t]
+\centering
+\caption{Protocol placement across the two rails}
+\label{tab:protomap}
+\begin{tabular}{@{}p{0.20\linewidth}p{0.26\linewidth}p{0.46\linewidth}@{}}
+\toprule
+\textbf{Step} & \textbf{Standard} & \textbf{What it establishes} \\
+\midrule
+Owner enrolment & Biometric ID\&V, passkeys & The human behind the agent is verified \\
+Authority, UPI & ReservePay / SBMD~\cite{npci-228} & Funds blocked, ceiling and expiry set \\
+Authority, card & Agentic Token via MDES & Agent identity, caps and categories, network-enforced \\
+Cart record & AP2 mandate shape~\cite{ap2} & Signed, non-repudiable record of the basket \\
+Transport & HTTP 402~\cite{p3p,mpp,x402} & Machine-readable payment challenge \\
+\textbf{Order check} & \textbf{ours} & \textbf{The payment matches the approved order} \\
+Authorisation & Verifiable Intent~\cite{mc-vi} & Transaction linked to the human mandate \\
+Settlement & UPI switch / card network & Money moves \\
+\textbf{Evidence} & \textbf{ours} & \textbf{Both legs bound to one purchase} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The sequence, end to end}\label{sec:seq}
+Stated once, in order, with the rail-dependent steps marked.
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+\item \textbf{Enrolment} (once). The owner verifies themselves and binds an
+authenticator. \emph{Both rails.}
+\item \textbf{Authority.} On UPI, a ReservePay block with the control layer as merchant.
+On cards, an Agentic Token minted by the issuer carrying the agent identity and scope.
+\emph{Rail-dependent.}
+\item \textbf{Detection.} The agent observes that a consumable is depleted.
+\emph{Both rails, no money involved.}
+\item \textbf{Cart.} The agent selects a supplier and builds a basket. \emph{Both rails.}
+\item \textbf{Intent.} The agent signs the finished cart. \emph{Both rails.}
+\item \textbf{Order check.} Deterministic evaluation against the signed authority. A
+refusal here reaches no rail and leaves nothing to reverse. \emph{Both rails, and this
+is the invariant step.}
+\item \textbf{Funding.} On UPI, the block is debited onto the agent's virtual card,
+consuming mandate headroom. On cards, nothing happens---there is no funding leg.
+\emph{UPI only.}
+\item \textbf{Payment.} On UPI, the card pays the merchant. On cards, the token is
+presented and the network validates scope before the issuer authorises. \emph{Both
+rails, different mechanism.}
+\item \textbf{Receipt.} A signed record binds the authority, the order and every leg.
+\emph{Both rails.}
+\item \textbf{Close.} On UPI, residual float sweeps back and headroom is released if the
+purchase failed. On cards, nothing to sweep. \emph{UPI only.}
+\end{enumerate}
+
+Steps 1, 3, 4, 5, 6, 8 and 9 are identical across rails. Steps 2, 7 and 10 differ, and
+steps 7 and 10 exist only on UPI. \textbf{That is the precise sense in which the control
+layer is rail-independent and the plumbing is not.}
 
 \section{Payment Lifecycle}\label{sec:life}
 A purchase passes through eleven states. Table~\ref{tab:life} gives each with the party
@@ -513,6 +644,67 @@ The control layer is implemented in Python with a double-entry ledger in which a
 postings must sum to zero, an append-only event log, Ed25519 signatures over
 canonically serialised records, and monetary values represented exclusively as integer
 paise. Owner-facing control is a web application authenticated by passkey.
+
+\section{Simulation with a Local Model}\label{sec:sim}
+The architecture is exercised end to end in a simulator. This section states what is
+genuine and what is stubbed, because the distinction determines what the results are
+worth.
+
+\subsection{What is real}
+\begin{itemize}[leftmargin=*]
+\item \textbf{The ledger.} Double-entry, with every posting required to sum to zero.
+Balances are re-derived from entries during audit rather than read from a stored field,
+so the audit is a check and not a tautology.
+\item \textbf{The order check.} The production evaluator, unmodified.
+\item \textbf{Signatures.} Ed25519 over canonically serialised records. Tampering is
+detected because the signature genuinely fails, not because a flag is set.
+\item \textbf{The state machine.} Illegal transitions raise rather than write an
+impossible row.
+\item \textbf{Reconciliation.} The three-outcome sweep, including the case where the
+outcome is genuinely unknown.
+\end{itemize}
+
+\subsection{What is stubbed}
+\begin{itemize}[leftmargin=*]
+\item \textbf{The rails.} There is no NPCI connection and no MDES provisioning. Response
+codes resemble the real sets closely enough to be recognisable; simulator-specific codes
+carry a distinguishing prefix so nobody mistakes them for switch responses.
+\item \textbf{The merchants.} Local services with adversarial behaviours that can be
+switched on individually.
+\end{itemize}
+
+\subsection{Why the agent runs on a local model}
+Three reasons, in order of importance.
+
+First, \textbf{the agent must be permitted to be wrong}. The claim under test is that
+safety derives from the mandate chain rather than from the agent's judgement, so an
+agent that defends itself proves nothing---a compromised agent will not defend itself.
+Running a local model lets the agent be manipulated on purpose and observed.
+
+Second, \textbf{reproducibility}. A local model removes a network dependency and an
+external service whose behaviour changes without notice. A deterministic fallback
+planner produces a fixed intent, which is what makes the rest of the pipeline testable
+offline; it is not a toy stand-in but the planner one wants in continuous integration.
+
+Third, \textbf{the injection surface is the point}. Merchant-supplied product text
+enters the agent's context directly. That is the attack, and it cannot be studied
+without a model that actually reads the text.
+
+\subsection{The planner interface}
+The agent is reached through a single interface: it receives a standing instruction and
+an event, and returns a proposal. It imports no rails and holds no write path to the
+store; a test asserts this so that it remains true under later modification.
+
+Any planner satisfying that interface can be substituted---a local model, a hosted
+model, or the deterministic fallback---without altering the gates, the ledger, or the
+reconciliation logic. \textbf{The agent is the most replaceable component in the system,
+by design.} That is what it means for enforcement to sit outside the agent's trust
+boundary.
+
+\subsection{What the simulation cannot establish}
+It cannot establish latency behaviour under real rail conditions, the behaviour of an
+actual issuer's authorisation policy, or whether a bank would accept the evidence bundle
+in a dispute. Those require counterparties, not code.
 
 \section{Payment Security}\label{sec:sec}
 
