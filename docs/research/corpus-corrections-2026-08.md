@@ -1,8 +1,13 @@
-# Corpus Corrections — 7 August 2026
+# Corpus Corrections — 7 August 2026, updated 24 August 2026
 
 Five claims in the existing documents are contradicted or unsupported by sources checked on
 7 Aug 2026. Three of them are load-bearing. Full sourcing in
 `agentic-payments-fact-base-2026-08.md`.
+
+**C6 and C7 were added on 24 Aug 2026** after reading the AP2 specification directly. C6 is the
+most consequential entry in this file: part of the stated contribution is already specified by
+AP2 v0.2. C7 is where the contribution moves to, and it is a stronger position than the one it
+replaces.
 
 Read this before presenting any deck or submitting the thesis proposal.
 
@@ -112,6 +117,79 @@ UCP partner, which is not the same thing.
 
 ---
 
+## C6 — "AP2 defines Intent, Cart and Payment Mandates" ❌ OUT OF DATE, and it scoops part of the contribution
+
+*Added 24 August 2026. Checked against the AP2 specification directly.*
+
+**Appears in:** `docs/project-brief-crypto.tex` §III-A, and the PDF sent to Prof. Vadapalli.
+
+**Current wording:** *"AP2 defines three signed artifacts as W3C Verifiable Credentials. An
+Intent Mandate says what the user asked for. A Cart Mandate says what the agent selected. A
+Payment Mandate authorises the movement."*
+
+**What the source says:** v0.2 defines **two** mandate types — a **Checkout Mandate** and a
+**Payment Mandate** — each existing in an **Open** and a **Closed** stage. The three-artifact
+naming is v0.1. (The Python SDK still ships the v0.1 classes `IntentMandate`, `CartMandate`,
+`PaymentMandate`, so code and documentation currently disagree.)
+
+**The part that matters more than the naming.** v0.2 already specifies the mechanism the brief
+presents as the contribution:
+
+- Open mandates are user-signed constraints created **before a cart exists**, for autonomous
+  execution — the "authorise before the merchant is known" case.
+- *"The Payment Mandate is bound to a particular Checkout using the cryptographic hash of the
+  Checkout JWT."* That is Check A.
+- The merchant *"verifies that the constraints in the open Checkout Mandate have been met."*
+  That is Check B.
+
+**Consequence:** "bind a payment to an agreed order" is no longer a novel mechanism. It is
+specified, open source under Apache 2.0, and backed by Google and the FIDO Alliance. The
+contribution has to move. See C7 for where it moves to.
+
+**Source:** https://ap2-protocol.org/ap2/specification/ and `/ap2/flows/`, read 24 Aug 2026.
+Google maintains AP2 and has a commercial interest in it.
+
+---
+
+## C7 — AP2's autonomous authority carries no spending limit ✅ NEW, and it is the opening
+
+*Added 24 August 2026.*
+
+**Status:** `PRIMARY`. Checked in both the v0.1 SDK source and the v0.2 specification.
+
+`IntentMandate` in `code/sdk/python/ap2/models/mandate.py` has exactly six fields:
+`user_cart_confirmation_required`, `natural_language_description`, `merchants`, `skus`,
+`requires_refundability`, `intent_expiry`. **No amount, no cap, no budget, no currency.**
+
+The v0.2 open Checkout Mandate carries `vct`, `constraints`, `cnf`, `iat`, `exp`, with
+constraint types `checkout.allowed_merchants` and `checkout.line_items`. It constrains *who*
+and *what*. It does not constrain *how much*.
+
+**Why this is the opening.** `tests/test_consent.py` already demonstrates that a self-consistent
+inflated cart passes every signing arrangement, and that what refuses it is a per-transaction
+ceiling close to the real basket size. AP2's autonomous flow has the **shopping agent** sign the
+closed mandate — *"the Shopping Agent MAY now sign it using its Agent Key instead of getting
+approval on a Trusted Surface"* — which is precisely the arrangement the simulator shows does
+not bound the loss.
+
+So the finding restates against a named, live, industry-backed protocol instead of a
+hypothetical: **constraint tightness bounds the loss; signature provenance does not, and AP2's
+autonomous authority has no monetary constraint to tighten.**
+
+**Caveat before this goes in a paper:** `constraints` is an extensible array. Someone could
+define a budget constraint type tomorrow, and there may be constraint types not listed on the
+page read. Re-check before submission, and phrase it as "no budget constraint type is defined
+among those documented", not "AP2 cannot express a budget".
+
+**Two further things AP2 does not answer, both still open:**
+
+1. **No enforcement party on UPI.** AP2 puts the check at the Merchant Payment Processor. UPI
+   has no such role in the path and the switch carries no such field. Where does the check run
+   on a rail with nobody to run it?
+2. **No UPI binding at all.** AP2 says nothing about Reserve Pay or UPI Circle.
+
+---
+
 ## What survives unchanged
 
 Worth stating, because most of the corpus holds:
@@ -135,3 +213,5 @@ Worth stating, because most of the corpus holds:
 | "Agent debits are non-compliant, banks eat the loss" | Asserted | Genuinely open — hinges on the e-mandate exemption reading |
 | "Instruction origin is unverified after mandate creation" | Novel observation | Still true, now corroborated in the literature — needs a mechanism to be a contribution |
 | "The rail can't support per-category mandates" | Implied by one-mandate reading | False. It can, today |
+| "Binding a payment to an agreed order is the contribution" | Novel mechanism | Specified by AP2 v0.2. Not novel — see C6 |
+| "Who signs the cart matters less than the ceiling" | A finding about signatures in general | Evidence against AP2's autonomous mode specifically, which has no ceiling field at all — see C7 |

@@ -11,7 +11,10 @@ import re
 import secrets
 import string
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+
+#: the unit a metered amount is rounded to. One paisa.
+_ONE = Decimal(1)
 
 # --------------------------------------------------------------------------
 # Money
@@ -64,6 +67,29 @@ class Money:
 
     def __neg__(self) -> "Money":
         return Money(-self.paise)
+
+    def times(self, quantity) -> "Money":
+        """This amount as a rate, multiplied by a measured quantity.
+
+        A charging session of 13.333 kWh at Rs 15.00 per kWh comes to Rs 199.995.
+        That is not a whole paisa, so somebody has to decide. This rounds half up
+        to the nearest paisa and the decision is stated here rather than left to
+        whichever caller happens to run first.
+
+        Floats are refused for the same reason `rupees` refuses them. A meter
+        reading arrives as text and should stay exact until it is used.
+        """
+        if isinstance(quantity, float):
+            raise TypeError(
+                "refusing to meter against a float quantity; pass a str or Decimal"
+            )
+        try:
+            qty = Decimal(str(quantity))
+        except InvalidOperation as exc:
+            raise ValueError(f"not a valid quantity: {quantity!r}") from exc
+        if qty < 0:
+            raise ValueError(f"quantity cannot be negative: {quantity!r}")
+        return Money(int((Decimal(self.paise) * qty).quantize(_ONE, ROUND_HALF_UP)))
 
     @property
     def is_positive(self) -> bool:

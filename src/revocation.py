@@ -29,6 +29,7 @@ from typing import Any
 
 import vcard
 from consent import Keypair, canonical
+from identity import PublicKey, Resolver
 from core import Money
 from models import MandateStatus, iso, utcnow
 
@@ -77,8 +78,23 @@ class RevocationRecord:
         self.signature = key.sign(canonical(self.payload()))
         return self
 
-    def verify_with(self, key: Keypair) -> bool:
-        return bool(self.signature) and key.verify(canonical(self.payload()), self.signature)
+    def verify_with(self, key: "PublicKey | Keypair") -> bool:
+        """Check the signature against a key you already hold."""
+        return bool(self.signature) and key.verify(
+            canonical(self.payload()), self.signature
+        )
+
+    def verify_using(self, resolver: Resolver) -> bool:
+        """Check it the way a third party would: by name, against public keys only.
+
+        This is the one that matters in a dispute. The operator signed the record,
+        so the operator can obviously verify it -- that proves nothing. What counts
+        is whether somebody holding no key of the operator's can confirm the record
+        is theirs and unaltered.
+        """
+        return bool(self.signature) and resolver.verify(
+            self.signer, canonical(self.payload()), self.signature
+        )
 
     @property
     def id(self) -> str:

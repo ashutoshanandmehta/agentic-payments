@@ -80,6 +80,7 @@ def can_transition(src: TxnState, dst: TxnState) -> bool:
 
 class AccountType(str, enum.Enum):
     USER = "USER"                # payer, holds a UPI-linked balance
+    USER_CARD = "USER_CARD"      # the owner's own card, a second way to fund an agent
     MERCHANT = "MERCHANT"        # beneficiary
     SUSPENSE = "SUSPENSE"        # in-flight funds between debit and credit
     AGENT_CARD = "AGENT_CARD"    # an agent's virtual card: money it controls directly
@@ -137,10 +138,42 @@ class Mandate:
     status: MandateStatus
     purpose: str
     created_at: datetime = field(default_factory=utcnow)
+    #: which registered agent this authority was granted to. None is the old
+    #: behaviour -- an authority with nobody named on it.
+    agent_id: str | None = None
+    #: what may be bought, not just from whom. Empty means no category limit,
+    #: which is the loosest grant and defeats every tighter one beside it.
+    categories: list[str] = field(default_factory=list)
+    #: which rail this authority is recorded on. See authority.py for what each
+    #: one silently drops.
+    rail: str | None = None
+    #: a rolling budget, separate from the lifetime cap. "Rs 2,000 a month" is a
+    #: different instruction from "Rs 5,000 in total" and the brief asks for both.
+    period_cap: Money | None = None
+    period_days: int | None = None
+    period_started_at: datetime | None = None
+    period_consumed: Money = field(default_factory=Money.zero)
 
     @property
     def remaining(self) -> Money:
         return self.total_cap - self.consumed
+
+    # -- the rolling period ------------------------------------------------
+
+    def period_elapsed(self, now: datetime | None = None) -> bool:
+        """Has the current window closed?"""
+        if self.period_days is None or self.period_started_at is None:
+            return False
+        now = now or utcnow()
+        return (now - self.period_started_at).days >= self.period_days
+
+    def period_remaining(self, now: datetime | None = None) -> Money | None:
+        """Headroom left in this window, rolling it over first if it has closed."""
+        if self.period_cap is None:
+            return None
+        if self.period_elapsed(now):
+            return self.period_cap
+        return self.period_cap - self.period_consumed
 
     def to_dict(self) -> dict:
         return {
@@ -156,6 +189,17 @@ class Mandate:
             "status": self.status.value,
             "purpose": self.purpose,
             "created_at": iso(self.created_at),
+            "agent_id": self.agent_id,
+            "categories": self.categories,
+            "rail": self.rail,
+            "period_cap": self.period_cap.to_rupees_str() if self.period_cap else None,
+            "period_days": self.period_days,
+            "period_started_at": iso(self.period_started_at),
+            "period_consumed": self.period_consumed.to_rupees_str(),
+            "period_remaining": (
+                self.period_remaining().to_rupees_str()
+                if self.period_cap else None
+            ),
         }
 
 
@@ -180,6 +224,9 @@ class Transaction:
     attempts: int = 0
     created_at: datetime = field(default_factory=utcnow)
     updated_at: datetime = field(default_factory=utcnow)
+    #: The field Section II-C of the brief says UPI does not carry: which agent
+    #: started this debit. None means nobody claimed it, which is UPI today.
+    agent_id: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -198,6 +245,7 @@ class Transaction:
             "attempts": self.attempts,
             "created_at": iso(self.created_at),
             "updated_at": iso(self.updated_at),
+            "agent_id": self.agent_id,
         }
 
 

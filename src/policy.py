@@ -26,7 +26,8 @@ from datetime import timedelta
 
 from core import Money, validate_vpa
 from models import Mandate, MandateStatus, PaymentIntent, TxnState, utcnow
-from consent import Keypair, Order, OrderSigner, validate_order
+from consent import Order, OrderSigner, validate_order
+from identity import Resolver
 from store import Store
 
 
@@ -89,8 +90,22 @@ class PolicyConfig:
 
 
 def validate_mandate(
-    mandate: Mandate | None, payee_vpa: str, amount: Money
+    mandate: Mandate | None,
+    payee_vpa: str,
+    amount: Money,
+    order: Order | None = None,
+    payer_vpa: str | None = None,
 ) -> Verdict:
+    """Is this payment inside what the user authorised?
+
+    `order` is optional because the category check needs to know what is being
+    bought, and only the order says that. Without an order there is no category to
+    check, which is precisely the state UPI is in today.
+
+    `payer_vpa` is optional only so direct callers keep working. The policy engine
+    always supplies it, because a mandate that does not check whose account it is
+    draining is not an authorisation.
+    """
     checks: list[dict] = []
     reasons: list[str] = []
 
@@ -112,6 +127,22 @@ def validate_mandate(
     ))
     if not in_window:
         reasons.append("mandate is outside its validity window")
+
+    # Whose money is this. An owner can hold several fundable accounts, a bank
+    # account and a card among them, and a mandate over one must not license the
+    # others. Without this a grant on the cheapest account authorises the lot.
+    if payer_vpa is not None:
+        payer = validate_vpa(payer_vpa)
+        owns_it = payer == mandate.payer_vpa
+        checks.append(_check(
+            "mandate_covers_this_account", owns_it,
+            f"debiting {payer} against a mandate for {mandate.payer_vpa}",
+        ))
+        if not owns_it:
+            reasons.append(
+                f"this mandate authorises {mandate.payer_vpa} and the payment is "
+                f"drawing on {payer}"
+            )
 
     payee = validate_vpa(payee_vpa)
     payee_ok = "*" in mandate.allowed_payees or payee in mandate.allowed_payees
@@ -142,6 +173,49 @@ def validate_mandate(
             f"{amount} exceeds the mandate's remaining headroom of {mandate.remaining}"
         )
 
+    # -- the rolling period, separate from the lifetime cap ----------------
+    # "Rs 2,000 a month" and "Rs 5,000 in total" are different instructions, and a
+    # system that only enforces the second lets a month's budget go in a day.
+    period_left = mandate.period_remaining()
+    if period_left is not None:
+        within_period = amount <= period_left
+        checks.append(_check(
+            "within_period_budget", within_period,
+            f"{amount} against {period_left} left in this "
+            f"{mandate.period_days}-day window",
+        ))
+        if not within_period:
+            reasons.append(
+                f"{amount} exceeds the {period_left} remaining in this "
+                f"{mandate.period_days}-day budget"
+            )
+
+    # -- what may be bought, not just from whom ---------------------------
+    # The Order has carried a category since it was written. Nothing read it until
+    # now, so an authority for dairy would happily pay a fuel invoice.
+    if mandate.categories:
+        if order is None:
+            checks.append(_check(
+                "category_in_scope", False,
+                f"authority is limited to {mandate.categories} but no order says "
+                f"what this is",
+            ))
+            reasons.append(
+                f"this authority is limited to {', '.join(mandate.categories)}, and "
+                f"nothing records what is being bought"
+            )
+        else:
+            in_scope = order.category in mandate.categories
+            checks.append(_check(
+                "category_in_scope", in_scope,
+                f"{order.category!r} against {mandate.categories}",
+            ))
+            if not in_scope:
+                reasons.append(
+                    f"the order is {order.category!r}, which is outside this "
+                    f"authority's {', '.join(mandate.categories)}"
+                )
+
     allowed = not reasons
     return Verdict(allowed, "00" if allowed else "SIM-MANDATE", reasons, checks)
 
@@ -156,15 +230,17 @@ class PolicyEngine:
         self,
         store: Store,
         config: PolicyConfig | None = None,
-        agent_key: Keypair | None = None,
-        merchant_keys: dict[str, Keypair] | None = None,
+        resolver: Resolver | None = None,
+        agent_name: str = "",
         order_signer: OrderSigner = OrderSigner.AGENT,
     ):
         self.store = store
         self.config = config or PolicyConfig()
-        # the switch holds registered public keys; here it holds the keypairs
-        self.agent_key = agent_key
-        self.merchant_keys = merchant_keys or {}
+        # Public keys only. This is what a switch actually holds: it has onboarded
+        # these parties and knows their public halves, and it could not forge a
+        # signature from any of them if it wanted to.
+        self.resolver = resolver or Resolver()
+        self.agent_name = agent_name
         self.order_signer = order_signer
 
     def evaluate(
@@ -173,8 +249,13 @@ class PolicyEngine:
         payer_vpa: str,
         mandate: Mandate | None,
         order: Order | None = None,
+        quantity: str | None = None,
     ) -> Verdict:
-        """Full gate: intent sanity, mandate, then operator policy."""
+        """Full gate: intent sanity, mandate, then operator policy.
+
+        `quantity` is the meter reading for a metered order. It arrives at
+        settlement, because that is the first moment anybody knows it.
+        """
         checks: list[dict] = []
         reasons: list[str] = []
 
@@ -225,22 +306,25 @@ class PolicyEngine:
         # different question from "did they agree to it", and only the second one
         # notices a Rs 600 charge against a Rs 118 basket.
         if self.config.require_order:
-            mkey = self.merchant_keys.get(intent.payee_vpa)
-            if mkey is None:
+            known = self.resolver.is_registered(intent.payee_vpa)
+            checks.append(_check("merchant_key_known", known, intent.payee_vpa))
+            if not known:
                 reasons.append(f"no registered key for merchant {intent.payee_vpa}")
-                checks.append(_check("merchant_key_known", False, intent.payee_vpa))
             else:
                 _ok, o_reasons, o_checks = validate_order(
                     order, intent.payee_vpa, intent.amount,
-                    self.order_signer, self.agent_key, mkey,
+                    self.order_signer, self.resolver,
+                    self.agent_name, intent.payee_vpa,
                     timedelta(seconds=self.config.order_ttl_seconds),
+                    quantity,
                 )
                 checks.extend(o_checks)
                 reasons.extend(o_reasons)
 
         # -- mandate -------------------------------------------------------
         if self.config.require_mandate:
-            mv = validate_mandate(mandate, intent.payee_vpa, intent.amount)
+            mv = validate_mandate(mandate, intent.payee_vpa, intent.amount, order,
+                                  payer_vpa=payer_vpa)
             checks.extend(mv.checks)
             reasons.extend(mv.reasons)
 

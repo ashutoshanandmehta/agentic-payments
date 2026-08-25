@@ -36,6 +36,15 @@ Thumbs.db
 .vscode/
 *.swp
 
+# --- generated simulator databases ---
+# Rebuilt from scratch on every run, so there is nothing in them worth keeping.
+# `upi_sim.db` was committed before this rule existed and is still tracked; run
+# `git rm --cached upi_sim.db` if you want it to stop showing up as modified.
+bench.db*
+console.db*
+*.db-wal
+*.db-shm
+
 # --- logs & scratch ---
 *.log
 scratch/

@@ -227,6 +227,77 @@ def cmd_consent(args, sim):
     print()
 
 
+def cmd_rails(args, sim):
+    """Put one authority to every rail and print what each would have to drop."""
+    from authority import compare_rails
+    import sim as simwiring
+
+    payees = args.payees or [simwiring.MERCHANT_VPA, simwiring.SECOND_MERCHANT_VPA]
+    cats = args.categories or ["groceries"]
+    cap = Money.rupees(str(args.cap or "5000"))
+
+    print(f"\n{CYAN}{'-' * 68}{RESET}")
+    print(f"  {BOLD}The authority the user set{RESET}")
+    print(f"{CYAN}{'-' * 68}{RESET}")
+    print(f"    pay        {', '.join(payees)}")
+    print(f"    for        {', '.join(cats) if cats else 'anything'}")
+    print(f"    up to      {cap}\n")
+
+    carried = 0
+    for rail, verdict in compare_rails(payees, cats, cap).items():
+        if verdict.expressible:
+            carried += 1
+            print(f"  {GREEN}CAN CARRY{RESET}  {BOLD}{rail.value}{RESET}")
+        else:
+            print(f"  {RED}CANNOT   {RESET}  {BOLD}{rail.value}{RESET}")
+        for loss in verdict.losses:
+            print(f"      {YELLOW}drops{RESET} {DIM}{loss}{RESET}")
+        print()
+
+    if not carried:
+        print(f"  {RED}{BOLD}No rail can record what the user said.{RESET}")
+        print(f"  {DIM}That is the gap: not a missing check, a missing "
+              f"vocabulary.{RESET}\n")
+
+
+def cmd_enforce(args, sim):
+    """Who on a UPI payment could actually run the two checks?"""
+    from enforcement import (
+        CHECK_QUESTION, UPI_TODAY, Check, report, with_cart_reference,
+    )
+
+    for title, topology in (
+        ("UPI as it is today", UPI_TODAY),
+        ("UPI carrying a cart reference", with_cart_reference()),
+    ):
+        result = report(topology)
+        print(f"\n{CYAN}{'-' * 68}{RESET}")
+        print(f"  {BOLD}{title}{RESET}")
+        print(f"{CYAN}{'-' * 68}{RESET}")
+
+        for check in Check:
+            print(f"\n  {BOLD}Check {check.value}{RESET} "
+                  f"{DIM}{CHECK_QUESTION[check]}{RESET}")
+            for f in result["findings"]:
+                if f["check"] != check.value:
+                    continue
+                mark = f"{GREEN}CAN {RESET}" if f["can_enforce"] else f"{DIM}  - {RESET}"
+                print(f"    {mark} {f['party']:<20} {DIM}{f['reason']}{RESET}")
+
+        blocked = result["unenforceable"]
+        print()
+        if blocked:
+            print(f"  {RED}{BOLD}Checks {', '.join(blocked)} cannot be enforced by "
+                  f"anyone.{RESET}")
+            print(f"  {DIM}Every party is either blind or conflicted. Only blindness "
+                  f"is fixable by the rail.{RESET}")
+        else:
+            for check, who in result["enforcers"].items():
+                print(f"  {GREEN}Check {check}{RESET} enforceable by "
+                      f"{BOLD}{', '.join(who)}{RESET}")
+    print()
+
+
 def cmd_demo(args, sim):
     """Seed, pay, break it, reconcile, audit -- the whole story in one run."""
     b, d, r, g, y, c, x = _colour(not args.no_colour)
@@ -357,6 +428,17 @@ def main():
                        help="show the same payment with and without the order gate")
     p.set_defaults(func=cmd_consent)
     p.add_argument("--amount", help="what the agent asks for (default 600)")
+
+    p = sub.add_parser("rails",
+                       help="which rail can carry the authority the user set")
+    p.set_defaults(func=cmd_rails)
+    p.add_argument("--payees", nargs="*", help="VPAs the agent may pay")
+    p.add_argument("--categories", nargs="*", help="what it may buy")
+    p.add_argument("--cap", help="total cap in rupees (default 5000)")
+
+    p = sub.add_parser("enforce",
+                       help="who on a UPI payment could run the two checks")
+    p.set_defaults(func=cmd_enforce)
 
     p = sub.add_parser("demo", help="seed, pay, fail, reconcile, audit")
     p.set_defaults(func=cmd_demo)

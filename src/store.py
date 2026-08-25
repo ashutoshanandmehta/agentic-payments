@@ -66,7 +66,26 @@ CREATE TABLE IF NOT EXISTS mandates (
     valid_until        TEXT NOT NULL,
     status             TEXT NOT NULL,
     purpose            TEXT NOT NULL,
-    created_at         TEXT NOT NULL
+    created_at         TEXT NOT NULL,
+    agent_id           TEXT,
+    categories         TEXT,
+    rail               TEXT,
+    period_cap         INTEGER,
+    period_days        INTEGER,
+    period_started_at  TEXT,
+    period_consumed    INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS agents (
+    agent_id      TEXT PRIMARY KEY,
+    agent_did     TEXT NOT NULL,
+    owner_vpa     TEXT NOT NULL,
+    owner_did     TEXT NOT NULL,
+    device_id     TEXT NOT NULL,
+    status_index  INTEGER NOT NULL,
+    token         TEXT NOT NULL,
+    issued_at     TEXT NOT NULL,
+    expires_at    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
@@ -83,7 +102,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     note            TEXT NOT NULL,
     attempts        INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL,
-    updated_at      TEXT NOT NULL
+    updated_at      TEXT NOT NULL,
+    agent_id        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS ledger (
@@ -127,7 +147,44 @@ class Store:
         with self._lock:
             self._conn.executescript(SCHEMA)
             self._conn.commit()
+        self._migrate()
         self._ensure_system_accounts()
+
+    # -- migration ---------------------------------------------------------
+
+    #: table -> columns added after that table's first release. `CREATE TABLE IF
+    #: NOT EXISTS` does nothing to a table that already exists, so a database
+    #: written before these columns existed would keep working right up until the
+    #: first query that mentions one.
+    _ADDED_COLUMNS = {
+        "transactions": {"agent_id": "TEXT"},
+        "mandates": {
+            "agent_id": "TEXT",
+            "categories": "TEXT",
+            "rail": "TEXT",
+            "period_cap": "INTEGER",
+            "period_days": "INTEGER",
+            "period_started_at": "TEXT",
+            "period_consumed": "INTEGER",
+        },
+    }
+
+    def _migrate(self) -> None:
+        """Add columns an older database is missing. Safe to run every startup."""
+        with self._lock:
+            for table, columns in self._ADDED_COLUMNS.items():
+                present = {
+                    row["name"]
+                    for row in self._conn.execute(f"PRAGMA table_info({table})")
+                }
+                if not present:                # table not created yet
+                    continue
+                for name, decl in columns.items():
+                    if name not in present:
+                        self._conn.execute(
+                            f"ALTER TABLE {table} ADD COLUMN {name} {decl}"
+                        )
+            self._conn.commit()
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -309,12 +366,22 @@ class Store:
     def save_mandate(self, m: Mandate) -> Mandate:
         with self._lock:
             self._conn.execute(
-                "INSERT OR REPLACE INTO mandates VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT OR REPLACE INTO mandates ("
+                "  umn, payer_vpa, allowed_payees, max_amount_per_txn, total_cap,"
+                "  consumed, valid_from, valid_until, status, purpose, created_at,"
+                "  agent_id, categories, rail, period_cap, period_days,"
+                "  period_started_at, period_consumed"
+                ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     m.umn, m.payer_vpa, json.dumps(m.allowed_payees),
                     m.max_amount_per_txn.paise, m.total_cap.paise, m.consumed.paise,
                     m.valid_from.isoformat(), m.valid_until.isoformat(),
                     m.status.value, m.purpose, m.created_at.isoformat(),
+                    m.agent_id, json.dumps(m.categories), m.rail,
+                    m.period_cap.paise if m.period_cap else None,
+                    m.period_days,
+                    m.period_started_at.isoformat() if m.period_started_at else None,
+                    m.period_consumed.paise,
                 ),
             )
             self._conn.commit()
@@ -333,6 +400,18 @@ class Store:
             status=MandateStatus(row["status"]),
             purpose=row["purpose"],
             created_at=_parse_dt(row["created_at"]),
+            agent_id=row["agent_id"],
+            categories=json.loads(row["categories"]) if row["categories"] else [],
+            rail=row["rail"],
+            period_cap=(
+                Money(row["period_cap"]) if row["period_cap"] is not None else None
+            ),
+            period_days=row["period_days"],
+            period_started_at=(
+                _parse_dt(row["period_started_at"])
+                if row["period_started_at"] else None
+            ),
+            period_consumed=Money(row["period_consumed"] or 0),
         )
 
     def get_mandate(self, umn: str) -> Mandate | None:
@@ -350,11 +429,23 @@ class Store:
         return [self._row_to_mandate(r) for r in rows]
 
     def consume_mandate(self, umn: str, amount: Money) -> Mandate:
-        """Record spend against a mandate, marking it exhausted when used up."""
+        """Record spend against a mandate, marking it exhausted when used up.
+
+        The rolling period is consumed here too, and rolls over first if its window
+        has closed. Rolling over at spend time rather than on a timer means there is
+        no scheduler to go wrong: the window is whatever the arithmetic says it is.
+        """
         with self._lock:
             m = self.get_mandate(umn)
             if m is None:
                 raise ValueError(f"no such mandate: {umn}")
+
+            if m.period_cap is not None:
+                if m.period_elapsed() or m.period_started_at is None:
+                    m.period_started_at = utcnow()
+                    m.period_consumed = Money.zero()
+                m.period_consumed = m.period_consumed + amount
+
             m.consumed = m.consumed + amount
             if m.remaining.paise <= 0:
                 m.status = MandateStatus.EXHAUSTED
@@ -369,6 +460,10 @@ class Store:
             m.consumed = m.consumed - amount
             if m.consumed.paise < 0:
                 m.consumed = Money.zero()
+            if m.period_cap is not None:
+                m.period_consumed = m.period_consumed - amount
+                if m.period_consumed.paise < 0:
+                    m.period_consumed = Money.zero()
             if m.status is MandateStatus.EXHAUSTED and m.remaining.is_positive:
                 m.status = MandateStatus.ACTIVE
             return self.save_mandate(m)
@@ -381,17 +476,63 @@ class Store:
             m.status = status
             return self.save_mandate(m)
 
+    # -- agents ------------------------------------------------------------
+    #
+    # The credential is stored as its signed token, not as parsed fields. The
+    # fields are there to query on; the token is the evidence, and re-serialising
+    # a credential from columns would produce bytes the owner never signed.
+
+    def save_registration(self, reg) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO agents ("
+                "  agent_id, agent_did, owner_vpa, owner_did, device_id,"
+                "  status_index, token, issued_at, expires_at"
+                ") VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    reg.agent_id, reg.agent_did, reg.owner_vpa, reg.owner_did,
+                    reg.device_id, reg.status_index, reg.token,
+                    reg.issued_at.isoformat(),
+                    reg.expires_at.isoformat() if reg.expires_at else None,
+                ),
+            )
+            self._conn.commit()
+
+    def get_registration(self, agent_id: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT * FROM agents WHERE agent_id=?", (agent_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list_registrations(self, device_id: str | None = None) -> list[dict]:
+        if device_id:
+            rows = self._conn.execute(
+                "SELECT * FROM agents WHERE device_id=? ORDER BY issued_at",
+                (device_id,),
+            )
+        else:
+            rows = self._conn.execute("SELECT * FROM agents ORDER BY issued_at")
+        return [dict(r) for r in rows]
+
     # -- transactions ------------------------------------------------------
 
     def create_txn(self, txn: Transaction) -> Transaction:
         with self._lock:
+            # Columns are named rather than positional. A positional INSERT breaks
+            # the moment anyone adds a column, and breaks silently if the new one
+            # happens to be type-compatible with its neighbour.
             self._conn.execute(
-                "INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO transactions ("
+                "  txn_id, upi_txn_id, rrn, idempotency_key, payer_vpa, payee_vpa,"
+                "  amount, state, response_code, umn, note, attempts,"
+                "  created_at, updated_at, agent_id"
+                ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     txn.txn_id, txn.upi_txn_id, txn.rrn, txn.idempotency_key,
                     txn.payer_vpa, txn.payee_vpa, txn.amount.paise, txn.state.value,
                     txn.response_code, txn.umn, txn.note, txn.attempts,
                     txn.created_at.isoformat(), txn.updated_at.isoformat(),
+                    txn.agent_id,
                 ),
             )
             self._conn.commit()
@@ -413,6 +554,7 @@ class Store:
             attempts=row["attempts"],
             created_at=_parse_dt(row["created_at"]),
             updated_at=_parse_dt(row["updated_at"]),
+            agent_id=row["agent_id"],
         )
 
     def get_txn(self, txn_id: str) -> Transaction | None:

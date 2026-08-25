@@ -1,189 +1,138 @@
-# Delegated payments for AI agents
+# Trusted delegated payments for AI agents
 
 MS research. IIT Kanpur. Supervisor: Prof. Vimal Kumar.
 
-**The question:** when an AI agent pays for something, is it allowed to, and can you
-prove it afterwards?
+**The question.** When an AI agent pays for something, is it allowed to, and can you prove it afterwards?
 
-## Scope
+The work starts when the agent tries to pay. The cart is already full. Something else chose the products and picked the shop. Product search and price comparison happen before that boundary and are out of scope.
 
-The work starts at the moment the agent tries to pay. The cart is already full, and
-something else chose the products and picked the shop.
+## What this is
 
-Product search, price comparison and shop selection are agentic commerce. Out of scope.
+A control layer that sits above UPI and card rails, with a simulator underneath it so every claim can be run.
 
-## What runs here
+The agent proposes a payment. A deterministic gate decides. The rail settles. The agent never moves money itself.
 
-A simulator with real UPI-shaped rails: a double-entry ledger, a two-leg payment with
-a suspense account in between, injectable failures, and a reconciliation sweep. On top
-of it sits the piece this thesis is about — an **order gate** that checks whether a
-payment matches what the user actually agreed to buy.
+## Run it
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
-.venv/bin/python src/cli.py consent      # the finding, in one command
-python3 src/cli.py --fresh demo          # the full payment lifecycle, narrated
-python3 tests/test_sim.py                # 44 tests: rails, ledger, recon
-.venv/bin/python tests/test_consent.py   # 16 tests: the order gate
-.venv/bin/python tests/test_vcard.py     # 8 tests: what the virtual-card hop costs
+.venv/bin/python src/bench.py            # the test bench at localhost:8010
+.venv/bin/python src/cli.py enforce      # who on a UPI payment could run the check
+.venv/bin/python src/cli.py rails        # which rail can carry the authority
+.venv/bin/python src/cli.py consent      # the order gate, off then on
+.venv/bin/python src/cli.py --fresh demo # the full payment lifecycle, narrated
 ```
 
-## Two ways to move the money
+## The six components
 
-**Direct.** One payment, user's bank straight to the merchant, governed by the user's
-mandate. This is `src/orchestrator.py`.
+The first three answer whether the agent may pay. The last three answer whether you can prove what happened.
 
-**Via an agent virtual card.** Two payments with a stop in between — the user's money
-loads onto a card the agent controls, then the card pays the merchant. This is
-`src/vcard.py`. It is what an agent-held credential looks like if the credential also
-holds funds.
+1. **Agent registration.** A cryptographic identity tying each agent to a verified owner and a host device. Several agents can share one device. Switching off the first leaves the others running.
+2. **Authority creation.** The owner sets a per payment ceiling, a period budget, a category scope and an expiry. The authority then binds to a rail.
+3. **The order check.** Before settlement, arithmetic confirms the payment matches the order the owner approved and sits inside the authority.
+4. **The cross rail receipt.** One signed record binding the registration, the authority, the order and every leg of money that moved. A spend has to chain back to the load that funded it.
+5. **Owner control.** A place to see what the agent bought and to switch it off across both rails.
+6. **Reconciliation.** Every payment ends in one of three states. Succeeded, failed, or unknown. The unknown state is the one that matters, because payment networks lose certainty about outcomes.
 
-The second model is implemented so its costs can be measured rather than argued about.
-`tests/test_vcard.py` asserts three of them:
+The order check runs before the authority check. Whether the owner can afford a payment is a different question from whether they agreed to it. Only the second one notices a Rs 600 charge against a Rs 118 basket.
 
-1. **Merchant scoping stops working.** On the load, the payee is the card, not the shop,
-   so the mandate has to name the card. A mandate that says "Brewhouse only" becomes a
-   mandate that says "this card only", and the card can then pay anyone. The test loads
-   against a Brewhouse-scoped mandate and pays CloudHost successfully — while the same
-   payment made directly is refused.
-2. **Float gets stranded.** Load succeeds, spend fails, and ₹499 sits on the card. The
-   reconciliation sweep does not find it, because nothing is stuck mid-transaction. Only
-   a deliberate `vcard.sweep()` returns it.
-3. **The audit chain is severed.** The load and the spend are separate transactions. The
-   load record names the card, never the merchant. The link between them exists only
-   because the application kept it.
+Both checks are arithmetic. No language model sits in the approval path, so every refusal produces a reason that can go in a dispute file.
 
-Also: mandate headroom is consumed by the *load*, so loading ₹600 for a ₹499 purchase
-burns ₹600 of the user's cap whether or not the purchase happens.
+## Two rails, two shapes
 
-In production this arrangement holds customer funds, which in India needs a PPI or PA
-licence. That is a funding question, not a simulation question.
+The rails work differently and the system models each on its own terms.
 
-## The gap this closes
+**Cards.** The agent gets a scoped token. It holds no value. It is a reference that resolves inside the network to the owner's real card. The network validates the scope at every authorisation, so merchant, category, cap and expiry are all checked before money moves. The money then moves once, owner to merchant.
 
-A mandate says how much the user may spend and with whom. A policy says what the
-operator permits. **Neither knows what the user agreed to buy.**
+**UPI.** There is no token. The authority is a block on the owner's own account and the block names one merchant. An agent that does not know its merchant in advance has to be handed money it controls. That means a load leg onto an agent held card, then a spend leg to the shop.
 
-So a ₹5,000 mandate for `brewhouse@ybl` happily authorises a ₹600 payment to
-`brewhouse@ybl`, even when the basket the human saw came to ₹118. Every limit is
-respected and the user is still overcharged.
+What the second shape costs is measured in `tests/test_vcard.py`. Merchant scope moves to the card. Headroom is consumed by the load. Float can sit on the card when a spend fails.
 
-`src/cli.py consent` shows exactly this:
+## Two purchase shapes
 
-```
-User agreed to ₹118.00.  Agent is asking for ₹600.00.
+Not every purchase has a basket.
 
-  WITHOUT the order gate (UPI today)
-    ALLOWED   15 checks
+**A basket.** The owner agrees a total. Settlement has to match it.
 
-  WITH the order gate
-    REFUSED   21 checks
-      x amount_matches_order   paying ₹600.00 against agreed ₹118.00
-```
+**A meter.** A charging session, a battery swap, a tanker of water. Nobody knows the total until it is over. The owner agrees a rate and a ceiling instead, and settlement is checked against the meter reading. Rs 15.00 per kWh with a Rs 250.00 ceiling settles 11.2 kWh at Rs 168.00 and refuses a padded rate.
 
-The gate is **off by default**, so the base system behaves the way UPI does today and
-the comparison is one flag.
+## The evidence half
 
-## The finding: who signs the order matters less than expected
+Every payment produces one signed receipt. It binds the registration, the authority, the order and each movement of money, across whichever rails it took.
 
-The obvious next question was who should sign the order — the agent, the merchant, or
-both. `tests/test_consent.py` runs all three against a *self-consistent* inflated
-order, one whose lines really do add to ₹600.
+Verification runs on public keys alone. A third party holding no private key can check that the receipt is intact, that the agent was registered to that owner and still active, that the order carries the signatures it claims, and that the money adds up.
 
-All three approve it.
+That last check is the one the ledger cannot do on its own. Money left stranded on an agent card is invisible to a reconciliation sweep, because nothing is stuck mid transaction and the books really do balance. The receipt names it.
 
-A signature proves who wrote a record. It does not prove the record is true. Once the
-order is the only surviving evidence of the agreement, there is nothing left to compare
-it against.
+## Tests
 
-What refuses it is a per-transaction ceiling close to the real basket size. **The
-protection comes from the limit the user set, not from who signed the order.**
+221 tests across eight suites. Every one runs offline.
 
-Requiring both signatures also has a cost that shows up as a test: if merchants must
-sign and no merchant has integrated, every payment stops, including the honest ones.
-
-## How a payment flows
-
-```
-standing instruction + event
-        │
-        ▼
-   ┌─────────┐  intent   ┌──────────────────────────┐  authorised  ┌────────┐
-   │  Agent  │ ────────▶ │ order gate → mandate →   │ ───────────▶ │ Switch │
-   │         │           │ policy   (deterministic) │              │ (NPCI) │
-   └─────────┘           └──────────────────────────┘              └───┬────┘
-    proposes                       disposes                            │
-                                                             debit ◀───┴───▶ credit
-                                                                 │           │
-                                                        remitter bank   beneficiary bank
-                                                                 └──▶ suspense ──▶
+```bash
+.venv/bin/python tests/test_sim.py            #  44  money, idempotency, mandates, policy, faults, recon
+.venv/bin/python tests/test_registration.py   #  41  agent identity, credentials, revocation isolation
+.venv/bin/python tests/test_authority.py      #  30  rail binding, enforcement, scope, budgets
+.venv/bin/python tests/test_metered.py        #  26  rate arithmetic, meter reconciliation, ceilings
+.venv/bin/python tests/test_receipt.py        #  25  the chain, stranded float, outside verification
+.venv/bin/python tests/test_token.py          #  24  card token scope, single movement, rail comparison
+.venv/bin/python tests/test_consent.py        #  16  the order gate and the signing experiment
+.venv/bin/python tests/test_vcard.py          #  15  virtual card costs, both funding rails
 ```
 
-The agent cannot move money. It emits a proposal and nothing else — `src/agent.py`
-imports no rails, and a test asserts that so it stays true.
+The ledger is double entry. Money moves only through balanced postings and a payment is two legs with a suspense account in between. Seven failure modes can be injected, including a bank response lost after the debit already committed. The books balance after every one, and `cli.py audit` rebuilds each balance from the entries to prove it.
 
-The order gate runs **before** the mandate on purpose. "Can they afford it" is a
-different question from "did they agree to it", and only the second one notices a ₹600
-charge against a ₹118 basket.
+## What the simulation found
+
+**A signature proves authorship, not honesty.** An inflated order whose lines genuinely add to Rs 600 was run past three signing designs. Agent signed, merchant signed, and both signed. All three settled it. What refused it was a per payment ceiling close to the real basket size. The protection comes from the limit the owner set.
+
+**On UPI today, nobody is positioned to run the check.** A delegated payment produces four documents. The authority, the cart, the payment request and the settlement. Check A needs the cart and the request. Check B needs the cart and the authority. Every party on a UPI payment either never sees one of them or has a stake in the amount. The merchant holds the cart and earns more when the amount is higher. The remitter bank is disinterested and already decides whether to debit, and has never seen a cart. Adding one cart reference to the rail makes both checks enforceable by that bank.
+
+Run `cli.py enforce` to see the whole table.
 
 ## Layout
 
 ```
-src/consent.py       the order, Ed25519 signing, and the order gate   <- the contribution
-src/policy.py        mandate validation + operator policy + the order gate
-src/core.py          Money as integer paise, VPA/RRN/UMN, NPCI response codes
-src/models.py        domain objects and the transaction state machine
-src/store.py         SQLite, double-entry ledger, idempotency, audit trail
-src/rails.py         banks, NPCI-style switch, fault injection
-src/agent.py         Claude planner + deterministic fallback (imports no rails)
-src/orchestrator.py  lifecycle state machine
-src/recon.py         reconciliation sweep and ledger audit
-src/sim.py           wiring and the demo world
-src/cli.py           command line
-src/api.py           FastAPI REST layer
-
-tests/test_sim.py      44 tests: money, idempotency, mandate, policy, faults, recon
-tests/test_consent.py  16 tests: the order gate and the signing experiment
-
-docs/thesis/         problem statement
-docs/research/       fact base, corrections, forward assumptions
-sim/                 earlier standalone prototype, superseded by src/
+src/identity.py       identities, the public and private split, signing
+src/registration.py   the agent credential and revocation status
+src/authority.py      what the owner allowed, and which rail can carry it
+src/enforcement.py    who on a payment could run the check
+src/consent.py        the order and the gate that binds a payment to it
+src/policy.py         authority validation and the operator policy gate
+src/agentic_token.py  the card rail, a scoped token the network checks
+src/vcard.py          the agent virtual card and both funding sources
+src/receipt.py        one signed record across both rails
+src/core.py           money as integer paise, identifiers, response codes
+src/models.py         domain objects and the transaction state machine
+src/store.py          SQLite, the double entry ledger, idempotency
+src/rails.py          banks, the switch, fault injection
+src/recon.py          the reconciliation sweep and the ledger audit
+src/orchestrator.py   the payment lifecycle
+src/agent.py          the Claude planner and a deterministic fallback
+src/bench.py          the browser test bench
+src/console.py        the owner control app
+src/cli.py            command line
+src/api.py            FastAPI REST layer
 ```
 
-## Provenance
+## Standards used
 
-The rails, ledger, reconciliation and CLI came from a separate simulator
-(`~/Downloads/upi-agent-sim`), merged in on 20 Aug 2026. The order gate, the signing
-experiment and `tests/test_consent.py` are this project's addition. Both test suites
-pass together: 44 + 16.
+The order check is the contribution. Everything under it is somebody else's specification, so a reviewer can check those parts against their own sources.
 
-## How facts are marked
+| Piece | Specification |
+|---|---|
+| Agent identifiers | [did:key](https://w3c-ccg.github.io/did-key-spec/) |
+| Revocation status | [W3C Bitstring Status List](https://www.w3.org/TR/vc-bitstring-status-list/) |
+| Signed artifacts | [RFC 8037](https://datatracker.ietf.org/doc/rfc8037/), EdDSA in JOSE |
+| Key binding | [RFC 7800](https://datatracker.ietf.org/doc/rfc7800/), the `cnf` claim |
+| Attestation shape | [RFC 9711](https://datatracker.ietf.org/doc/rfc9711/) EAT, [RFC 9334](https://datatracker.ietf.org/doc/rfc9334/) RATS |
 
-- `PRIMARY` — checked against the actual source
-- `SECONDARY` — someone reliable reported it, not verified directly
-- `UNVERIFIED` — believed, not checked. Do not build on it.
-- `CONTESTED` — sources disagree, or it was checked and failed
+## Honesty
 
-`docs/research/corpus-corrections-2026-08.md` records claims that turned out wrong,
-including three load-bearing ones. That file is the standard, not an embarrassment.
+Two things a reader should know up front.
 
-## Still to verify
+The rails are simulated. Response codes carry a `SIM-` prefix so nobody mistakes them for real switch responses. The UPI figures come from secondary sources and stay unverified until the NPCI circulars are read.
 
-- **P3P prior art — highest priority.** Pine Labs' P3P (11 Jun 2026) runs agentic
-  payments on UPI ReservePay with an identity layer called Grantex. Its public docs do
-  not describe binding a payment to an agreed order, but the docs stop at the quickstart.
-  Read the SDK or email `pgintegration@pinelabs.com`. If P3P already does this, the
-  contribution needs rethinking. See `docs/protocols.html`.
-- Read **NPCI OC 228** section by section. NPCI's site blocks automated fetching.
-- Check whether **Juspay** has published an AP2-to-UPI binding. If they have, part of
-  the novelty is gone.
-- Find any RBI or NPCI statement on whether agent payments sit inside the e-mandate
-  exemption. That decides whether agent payments on UPI are already legal.
+The attestation is a stub. The token shape is a real Entity Attestation Token. The evidence behind it is not, because this runs on a laptop. Every attestation says `simulated: true`.
 
-## What this is not
-
-Simulated rails, not a PSP integration. No real NPCI connection, no settlement windows,
-no bank cut-offs, no UPI PIN cryptography, no scheme compliance. `SIM-` prefixed
-response codes are this simulator's own, marked so nobody mistakes them for switch
-responses.
+The full methodology, the results and the open questions are in [`docs/methodology-and-results.html`](docs/methodology-and-results.html). Claims there are marked `PRIMARY`, `SECONDARY`, `UNVERIFIED` or `CONTESTED`. Corrections to earlier work live in [`docs/research/corpus-corrections-2026-08.md`](docs/research/corpus-corrections-2026-08.md).

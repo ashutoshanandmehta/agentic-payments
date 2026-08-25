@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trusted Delegated Payments for AI Agents over UPI and Cards</title>
+<style>
+:root{
+  --paper:#f7f1e7; --sheet:#ffffff; --sunk:#f2ebe0;
+  --rule:#e8ddcc; --rule2:#f0e8db;
+  --ink:#2b241c; --dim:#6f6455; --faint:#9c9081;
+  --blue:#12439b; --blue-soft:#e6ecfa;
+  --madder:#c2392c; --madder-soft:#fbe7e4;
+  --marigold:#bf7a08; --marigold-soft:#fcf0d9;
+  --bottle:#1d7a55; --bottle-soft:#e2f2ea;
+  --r:16px; --r-sm:11px; --pill:999px;
+  --shadow:0 1px 2px rgba(43,36,28,.05), 0 6px 20px rgba(43,36,28,.05);
+  --round:ui-rounded,"SF Pro Rounded","Hiragino Maru Gothic ProN",Quicksand,Nunito,
+          "Varela Round",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--paper)}
+body{color:var(--ink);font:16px/1.68 var(--round);-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--mono);font-size:.92em}
+::selection{background:var(--blue);color:#fff}
+
+.wrap{max-width:52rem;margin:0 auto;padding:3rem 1.5rem 6rem}
+@media(max-width:700px){.wrap{padding:2rem 1.1rem 4rem}}
+
+.mast{margin-bottom:2.5rem}
+.badge{display:inline-block;font-size:.78rem;font-weight:700;color:var(--blue);
+  background:var(--blue-soft);padding:.25rem .8rem;border-radius:var(--pill)}
+h1{margin:.9rem 0 0;font-size:2.1rem;font-weight:700;letter-spacing:-.03em;line-height:1.16}
+.sub{margin:.7rem 0 0;font-size:1.02rem;color:var(--dim);max-width:40rem}
+.meta{margin-top:1.3rem;display:flex;flex-wrap:wrap;gap:.5rem}
+.meta span{font-size:.8rem;color:var(--dim);background:var(--sheet);
+  border:1px solid var(--rule2);border-radius:var(--pill);padding:.3rem .8rem}
+
+h2{margin:3rem 0 0;font-size:1.42rem;font-weight:700;letter-spacing:-.02em;line-height:1.25}
+h2 .num{color:var(--faint);font-variant-numeric:tabular-nums;margin-right:.5rem}
+h3{margin:2rem 0 0;font-size:1.06rem;font-weight:700;letter-spacing:-.01em}
+h4{margin:1.4rem 0 .3rem;font-size:.94rem;font-weight:700;color:var(--dim)}
+p{margin:.75rem 0 0}
+hr{border:0;border-top:1px solid var(--rule);margin:2.6rem 0 0}
+a{color:var(--blue);text-decoration:none;border-bottom:1px solid var(--blue-soft)}
+a:hover{border-bottom-color:var(--blue)}
+strong{font-weight:700}
+ul,ol{margin:.75rem 0 0;padding-left:1.3rem}
+li{margin:.35rem 0}
+li::marker{color:var(--faint)}
+
+.box{background:var(--sheet);border:1px solid var(--rule2);border-radius:var(--r);
+  padding:1.1rem 1.3rem;margin:1.2rem 0 0;box-shadow:var(--shadow)}
+.box.key{background:var(--blue-soft);border-color:#d3ddf3}
+.box.bad{background:var(--madder-soft);border-color:#f3d5d0}
+.box.warn{background:var(--marigold-soft);border-color:#f0dfbc}
+.box.good{background:var(--bottle-soft);border-color:#cfe6da}
+.box h4{margin-top:0;color:inherit}
+.box.bad h4{color:var(--madder)} .box.warn h4{color:var(--marigold)}
+.box.good h4{color:var(--bottle)} .box.key h4{color:var(--blue)}
+.box p:first-of-type{margin-top:.3rem}
+
+.tag{display:inline-block;font-family:var(--mono);font-size:.66rem;font-weight:700;
+  letter-spacing:.06em;padding:.14rem .45rem;border-radius:4px;vertical-align:.09em}
+.tag.p{background:var(--bottle-soft);color:var(--bottle)}
+.tag.s{background:var(--blue-soft);color:var(--blue)}
+.tag.u{background:var(--marigold-soft);color:var(--marigold)}
+.tag.c{background:var(--madder-soft);color:var(--madder)}
+
+.tw{overflow-x:auto;margin:1.1rem 0 0}
+table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:34rem}
+th{text-align:left;font-size:.76rem;font-weight:700;color:var(--faint);
+  padding:0 .6rem .5rem;border-bottom:1px solid var(--rule)}
+td{border-top:1px solid var(--rule2);padding:.55rem .6rem;vertical-align:top;color:var(--dim)}
+td:first-child{color:var(--ink);font-weight:600}
+td.no{color:var(--madder);font-weight:600} td.yes{color:var(--bottle);font-weight:600}
+td.warnc{color:var(--marigold);font-weight:600}
+
+pre{margin:1.1rem 0 0;background:var(--sheet);border:1px solid var(--rule2);
+  border-radius:var(--r-sm);padding:.9rem 1.05rem;overflow-x:auto;
+  font-family:var(--mono);font-size:.79rem;line-height:1.62;color:var(--dim)}
+pre b{color:var(--ink);font-weight:700}
+pre .g{color:var(--bottle);font-weight:700}
+pre .r{color:var(--madder);font-weight:700}
+pre .y{color:var(--marigold);font-weight:700}
+pre .c{color:var(--faint)}
+
+.fig{margin:1.3rem 0 0;background:var(--sheet);border:1px solid var(--rule2);
+  border-radius:var(--r);padding:1.2rem 1.3rem;box-shadow:var(--shadow)}
+.figcap{font-size:.82rem;color:var(--faint);margin-top:.9rem}
+.flow{display:flex;align-items:stretch;gap:.4rem;flex-wrap:wrap}
+.stage{flex:1 1 8rem;min-width:8rem;background:var(--sunk);border-radius:var(--r-sm);
+  padding:.7rem .75rem;display:flex;flex-direction:column;gap:.25rem}
+.stage b{font-size:.86rem;font-weight:700;color:var(--ink)}
+.stage span{font-size:.75rem;color:var(--dim);line-height:1.4}
+.stage.gate{background:var(--blue-soft)}
+.stage.gate b{color:var(--blue)}
+.stage.ev{background:var(--bottle-soft)}
+.stage.ev b{color:var(--bottle)}
+.arrow{display:flex;align-items:center;color:var(--faint);font-size:1.1rem}
+@media(max-width:700px){.arrow{display:none}}
+.contain{display:flex;align-items:stretch;gap:.55rem}
+.brk{font-family:var(--mono);font-size:2.6rem;line-height:1;color:var(--blue);
+  font-weight:300;display:flex;align-items:center}
+.brk.broken{color:var(--madder)}
+.track{flex:1;position:relative;background:var(--sunk);border-radius:var(--r-sm);
+  height:2.6rem;overflow:hidden}
+.seg{position:absolute;top:0;bottom:0}
+.seg.a{background:var(--blue);opacity:.85;border-radius:var(--r-sm) 0 0 var(--r-sm)}
+.seg.o{background:repeating-linear-gradient(45deg,var(--madder) 0 6px,transparent 6px 13px);opacity:.75}
+.spill{width:4.4rem;background-color:var(--madder-soft);border-radius:var(--r-sm);
+  background-image:repeating-linear-gradient(45deg,rgba(194,57,44,.45) 0 6px,transparent 6px 13px);
+  border:1.5px solid var(--madder);height:2.6rem;display:grid;place-items:center;
+  font-size:.7rem;color:var(--madder);font-weight:700}
+
+.foot{margin-top:3.5rem;padding-top:1.5rem;border-top:1px solid var(--rule);
+  font-size:.84rem;color:var(--faint)}
+.toc{background:var(--sheet);border:1px solid var(--rule2);border-radius:var(--r);
+  padding:1.1rem 1.3rem;margin:2rem 0 0;box-shadow:var(--shadow)}
+.toc ol{margin:.5rem 0 0;padding-left:1.4rem}
+.toc a{border:0;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="mast">
+  <span class="badge">Engineering record &middot; 24 August 2026</span>
+  <h1>Trusted Delegated Payments for AI Agents over UPI and Cards</h1>
+  <p class="sub">Objective, methodology and results for the simulator. It tests whether an agent
+  payment can be bound to what its owner agreed to. It tests whether anyone on either rail is in a
+  position to check. It measures what each rail costs you.</p>
+  <div class="meta">
+    <span>MS research at IIT Kanpur</span>
+    <span>Supervisor: Prof. Vimal Kumar</span>
+    <span>191 tests passing</span>
+    <span>Python 3.14 with stdlib and <span class="mono">cryptography</span></span>
+  </div>
+</header>
+
+<div class="box key">
+  <h4>How claims are marked</h4>
+  <p><span class="tag p">PRIMARY</span> checked against the actual source &nbsp;
+     <span class="tag s">SECONDARY</span> reliably reported but not verified directly &nbsp;
+     <span class="tag u">UNVERIFIED</span> believed but not checked. Do not build on it. &nbsp;
+     <span class="tag c">CONTESTED</span> sources disagree, or it was checked and failed</p>
+</div>
+
+<nav class="toc">
+  <h4>Contents</h4>
+  <ol>
+    <li><a href="#obj">Objective</a></li>
+    <li><a href="#reframe">The finding that changed the objective</a></li>
+    <li><a href="#arch">Methodology: architecture</a></li>
+    <li><a href="#proto">Methodology: protocols adopted</a></li>
+    <li><a href="#sim">Methodology: the simulation</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#limits">What is not simulated</a></li>
+    <li><a href="#next">What remains</a></li>
+  </ol>
+</nav>
+
+<hr>
+
+<h2 id="obj"><span class="num">01</span>Objective</h2>
+
+<p>The work begins when an AI agent tries to pay. The cart is already full. Something else chose
+the products and picked the shop. The question is deliberately narrow.</p>
+
+<div class="box key">
+  <p style="margin:0;font-size:1.05rem"><strong>Is this agent allowed to make this payment, and
+  can I prove it afterwards?</strong></p>
+</div>
+
+<p>Product search, price comparison and shop selection all happen before the boundary being
+studied. They are out of scope.</p>
+
+<h3>Why the work spans two rails</h3>
+
+<p>The system covers UPI and cards because the two are asymmetric, and the asymmetry is the whole
+reason a layer above them is needed.</p>
+
+<p>UPI is cheap and everywhere in India. Since Circular 201-B it can register a device or a
+software profile as a delegate. But what it enforces is a limit. It carries no agent identifier on
+the transaction, no merchant scope once an agent is involved, and no notion of what was bought.</p>
+
+<p>Cards are the opposite. They are expensive, and card networks spent two decades building
+infrastructure that assumes an adversary. A card carries an agent identifier, enforces merchant and
+category scope at the network, and has a dispute process with defined liability. What it costs is
+custody. The money moves onto a credential the agent holds before the merchant is ever paid.</p>
+
+<p>So the owner picks which rail funds a given agent, and the trade is different on each. The
+simulator implements both so the trade can be measured instead of argued.</p>
+
+<h3>The gap as originally stated</h3>
+
+<p>UPI makes you name the shop when you create a payment authority. UPI Autopay is locked to one
+payee. UPI Reserve Pay blocks money for one named merchant. But an agent does not know which shop
+it is paying until the cart is finished. So the authority has to be created before anyone knows
+what it is authorising. Existing UPI cannot express that.</p>
+
+<p>A second gap sits alongside it. A mandate says how much may be spent and with whom. An operator
+policy says what is permitted. <strong>Neither knows what the user agreed to buy.</strong> A
+&#8377;5,000 mandate for <span class="mono">brewhouse@ybl</span> will authorise a &#8377;600 payment
+to <span class="mono">brewhouse@ybl</span> even when the basket the human saw came to &#8377;118.
+Every limit is respected. The user is still overcharged.</p>
+
+<hr>
+
+<h2 id="reframe"><span class="num">02</span>The finding that changed the objective</h2>
+
+<p>The protocol landscape was checked directly before building further. That check moved the
+contribution.</p>
+
+<div class="box bad">
+  <h4>AP2 v0.2 already specifies the order binding <span class="tag p">PRIMARY</span></h4>
+  <p>Read from <a href="https://ap2-protocol.org/ap2/specification/">the AP2 specification</a> and
+  its flows page on 24 August 2026.</p>
+  <ul>
+    <li><strong>Open mandates</strong> are user signed constraints. They are created before a cart
+      exists, for autonomous execution. That is the authorise before the merchant is known case.</li>
+    <li><strong>Closed mandates</strong> bind to one transaction. The spec says the Payment Mandate
+      is bound to a particular Checkout using the cryptographic hash of the Checkout JWT.</li>
+    <li>The merchant verifies that the constraints in the open Checkout Mandate have been met.</li>
+  </ul>
+  <p>Binding a payment to an agreed order is therefore <strong>not a novel mechanism</strong>. It is
+  specified. It is open source under Apache 2.0. It is backed by Google and the FIDO Alliance.</p>
+</div>
+
+<p>A related correction. The project brief section III A described AP2 as defining Intent, Cart and
+Payment Mandates. That is v0.1 naming. v0.2 defines a <strong>Checkout Mandate</strong> and a
+<strong>Payment Mandate</strong>. Each has an Open and a Closed stage. Both points are logged as C6
+in <span class="mono">docs/research/corpus-corrections-2026-08.md</span>.</p>
+
+<h3>What survives, and why it is stronger</h3>
+
+<div class="box good">
+  <h4>AP2 autonomous authority carries no spending limit <span class="tag p">PRIMARY</span></h4>
+  <p><span class="mono">IntentMandate</span> in the AP2 Python SDK has exactly six fields.
+  <span class="mono">user_cart_confirmation_required</span>,
+  <span class="mono">natural_language_description</span>, <span class="mono">merchants</span>,
+  <span class="mono">skus</span>, <span class="mono">requires_refundability</span> and
+  <span class="mono">intent_expiry</span>. <strong>No amount. No cap. No budget. No
+  currency.</strong></p>
+  <p>The v0.2 open Checkout Mandate carries <span class="mono">vct</span>,
+  <span class="mono">constraints</span>, <span class="mono">cnf</span>, <span class="mono">iat</span>
+  and <span class="mono">exp</span>. Its constraint types are
+  <span class="mono">checkout.allowed_merchants</span> and
+  <span class="mono">checkout.line_items</span>. It constrains who and what. It does not constrain
+  how much.</p>
+</div>
+
+<p>This matters because of a result the simulator already had. What refuses an inflated order is a
+per transaction ceiling close to the real basket size. The signature does not refuse it. AP2
+autonomous flow has the shopping agent sign its own closed mandate. The spec says the Shopping
+Agent may sign it using its Agent Key instead of getting approval on a Trusted Surface. That is
+exactly the arrangement shown not to bound the loss.</p>
+
+<div class="box warn">
+  <h4>Caveat before this is quoted <span class="tag u">UNVERIFIED</span></h4>
+  <p><span class="mono">constraints</span> is an extensible array. A budget constraint type could be
+  defined later. There may also be constraint types beyond those documented on the page read.
+  Phrase this as no budget constraint type is defined among those documented. Never phrase it as
+  AP2 cannot express a budget. Check it again before submission.</p>
+</div>
+
+<h3>The revised objective</h3>
+
+<p>Two questions AP2 does not answer. Both are specific to this rail.</p>
+
+<ol>
+  <li><strong>No enforcement party on UPI.</strong> AP2 places the binding check at the Merchant
+  Payment Processor. UPI has no such role in the path. The switch carries no such field. So where
+  does the check run on a rail with nobody to run it?</li>
+  <li><strong>No UPI binding.</strong> AP2 says nothing about Reserve Pay or UPI Circle.</li>
+</ol>
+
+<p>The order gate stops being the novelty. It becomes the instrument that produces the finding.</p>
+
+<hr>
+
+<h2 id="arch"><span class="num">03</span>Methodology: architecture</h2>
+
+<h3>The proposed architecture</h3>
+
+<p>An authorisation and evidence layer that sits above both rails. The agent proposes. The layer
+disposes. The rail settles. The agent can never move money itself.</p>
+
+<div class="fig">
+  <div class="flow">
+    <div class="stage"><b>Agent</b><span>assembles the cart and asks to pay</span></div>
+    <span class="arrow">&rarr;</span>
+    <div class="stage gate"><b>Order check</b><span>does the payment match the order</span></div>
+    <span class="arrow">&rarr;</span>
+    <div class="stage gate"><b>Authority check</b><span>does the order fit what was granted</span></div>
+    <span class="arrow">&rarr;</span>
+    <div class="stage"><b>Rail</b><span>UPI block or card token</span></div>
+    <span class="arrow">&rarr;</span>
+    <div class="stage ev"><b>Receipt</b><span>one signed record of what happened</span></div>
+  </div>
+  <p class="figcap">The order check runs before the authority check on purpose. Can they afford it
+  is a different question from did they agree to it. Only the second one notices a &#8377;600 charge
+  against a &#8377;118 basket. Both checks are arithmetic. No language model sits in the approval
+  path, because a bank cannot refuse a payment on a probability. It needs a reason it can put in a
+  dispute file.</p>
+</div>
+
+<h3>The six components and their status</h3>
+
+<div class="tw">
+<table>
+<thead><tr><th>Component</th><th>What it does</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>1. Agent registration</td><td>A cryptographic identity linking each agent to a verified owner and a host device. Several agents may run on one device, and revoking one leaves the others alive.</td><td class="yes">Built</td></tr>
+<tr><td>2. Authority creation</td><td>The owner sets a per purchase ceiling, a period budget, a category scope and an expiry. The authority then binds to a rail, which may not be able to carry all of it. Two shapes are supported. An agreed total for a basket, and a rate with a ceiling for anything metered.</td><td class="yes">Built</td></tr>
+<tr><td>3. The order check</td><td>Before settlement, arithmetic confirms the payment matches the order and the order sits inside the authority. For a metered purchase it reconciles the amount against a meter reading instead.</td><td class="yes">Built</td></tr>
+<tr><td>4. The cross rail receipt</td><td>One signed record binding the registration, the authority, the order and every leg of money that moved. The amounts have to agree, and a spend has to chain back to the load that funded it.</td><td class="yes">Built</td></tr>
+<tr><td>5. Owner control</td><td>Create, edit, revoke and monitor authorities. One view of purchase history across both rails.</td><td class="warnc">Partial. The owner app and 23 REST routes exist. Agents and receipts are not exposed yet.</td></tr>
+<tr><td>6. Reconciliation</td><td>Every payment ends in one of three states. Succeeded, failed, or unknown. The unknown state matters because payment networks lose certainty about outcomes.</td><td class="warnc">Partial. The three states and the sweep are built. The dispute path is not.</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Component 4 is the one that makes the rest provable. Its purpose is narrow. The load leg and the
+spend leg are separate transactions on separate rails, and nothing in either ledger says this spend
+came from that load. The receipt is what carries that link into a dispute.</p>
+
+<p>Component 6 is the remaining gap. The three outcome states and the sweep are built. What is not
+built is the dispute path, which is what happens after a payment ends in the unknown state. The
+receipt is the input that path needs, so it was the necessary prerequisite.</p>
+
+<h3>What had to be fixed first</h3>
+
+<p>Four of the six components existed in some form. Two did not. One blocking design fault had to
+be fixed before either of the missing two could mean anything.</p>
+
+<h3>The blocker: verification required the private key</h3>
+
+<p><span class="tag p">PRIMARY</span> <span class="mono">consent.py:79</span> verified a signature
+by calling <span class="mono">self._private.public_key()</span>. The wiring in
+<span class="mono">sim.py</span> held keypairs where a switch would hold registered public keys.</p>
+
+<p>That is tolerable for the order gate experiment. It only asks what a signature proves. It is
+fatal for registration and receipts. Their whole claim is that a verifier holding <strong>no private
+key</strong> can check the evidence. If checking a signature needs the secret that made it, then the
+only party who can check is the party who could have forged it.</p>
+
+<h3>Modules</h3>
+
+<div class="tw">
+<table>
+<thead><tr><th>Module</th><th>Lines</th><th>Responsibility</th></tr></thead>
+<tbody>
+<tr><td class="mono">identity.py</td><td>437</td><td>New. <span class="mono">did:key</span> identifiers. The Signer and PublicKey split. A Resolver holding public keys only. JWS compact serialisation.</td></tr>
+<tr><td class="mono">registration.py</td><td>357</td><td>New. The owner issued agent credential. The Bitstring Status List. The registry that answers whether a registration still stands.</td></tr>
+<tr><td class="mono">authority.py</td><td>230</td><td>New. What the user allowed, and which rail can express it. It reports losses rather than raising.</td></tr>
+<tr><td class="mono">enforcement.py</td><td>267</td><td>New. Which party sees enough to run each check, and whether it can be trusted to.</td></tr>
+<tr><td class="mono">consent.py</td><td>269</td><td>The Order and the gate that binds a payment to it. Rewired onto the Resolver.</td></tr>
+<tr><td class="mono">policy.py</td><td>378</td><td>Mandate validation and the operator policy gate. Gained the category and period budget checks.</td></tr>
+<tr><td class="mono">store.py</td><td>657</td><td>SQLite, double entry ledger, idempotency. Gained an <span class="mono">agents</span> table and a guarded column migration.</td></tr>
+<tr><td class="mono">receipt.py</td><td>435</td><td>New. One signed record binding the registration, the authority, the order and every leg of money that moved, across whichever rails it took.</td></tr>
+<tr><td class="mono">bench.py</td><td>1071</td><td>New. The five panel test bench. Stdlib HTTP server. No network.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Separation of who holds what</h3>
+
+<p>The agent holds its own private key. Each merchant holds its own. That is legitimate. An agent
+really does hold its own key. The policy engine receives a <strong>Resolver holding only public
+halves</strong>. Nothing that reaches a verdict holds a secret belonging to a party it is
+judging.</p>
+
+<p>One distinction fell out of this and it is load bearing. A <span class="mono">did:key</span>
+resolves for anybody. The key is inside the identifier. So resolving one tells you a signature is
+genuinely theirs. It tells you nothing about whether they were allowed to sign it.
+<strong>An identifier authenticates. Only an issued credential authorises.</strong> The Resolver
+therefore separates <span class="mono">resolve()</span> from
+<span class="mono">is_registered()</span>. Gates fail closed on the stricter one.</p>
+
+<hr>
+
+<h2 id="proto"><span class="num">04</span>Methodology: protocols adopted</h2>
+
+<p>Nothing was invented where a specification exists. The order gate is the contribution.
+Everything it stands on is somebody else's document. A reviewer can check the parts that are not
+mine against their own sources.</p>
+
+<div class="tw">
+<table>
+<thead><tr><th>Need</th><th>Adopted</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Agent identifiers</td><td><a href="https://w3c-ccg.github.io/did-key-spec/">did:key v0.9</a></td><td class="warnc">W3C CCG draft. <strong>Not</strong> a Recommendation.</td></tr>
+<tr><td>Revocation status</td><td><a href="https://www.w3.org/TR/vc-bitstring-status-list/">Bitstring Status List v1.0</a></td><td class="yes">W3C Recommendation, 15 May 2025</td></tr>
+<tr><td>Signed artifacts</td><td><a href="https://datatracker.ietf.org/doc/rfc8037/">RFC 8037</a>, EdDSA in JOSE</td><td class="yes">Proposed Standard, Jan 2017</td></tr>
+<tr><td>Key binding</td><td><a href="https://datatracker.ietf.org/doc/rfc7800/">RFC 7800</a>, the <span class="mono">cnf</span> claim</td><td class="yes">Proposed Standard, Apr 2016</td></tr>
+<tr><td>Attestation shape</td><td><a href="https://datatracker.ietf.org/doc/rfc9711/">RFC 9711</a> EAT, roles from <a href="https://datatracker.ietf.org/doc/rfc9334/">RFC 9334</a> RATS</td><td class="yes">Proposed Standard and Informational</td></tr>
+</tbody>
+</table>
+</div>
+
+<h4>Two consequences that had to be designed around</h4>
+
+<ul>
+  <li><strong>A <span class="mono">did:key</span> cannot be revoked.</strong> It is generative and
+  has no registry. There is nothing to update or deactivate. Revocation therefore lives in a
+  separate status credential and not in the identifier. Revoking agent 3 flips bit 3. Agents 1, 2
+  and 4 on the same device are untouched.</li>
+  <li><strong>AP2 forbids Ed25519 on the Checkout JWT.</strong> It requires a non deterministic
+  scheme to prevent rainbow table attacks. This codebase is Ed25519 throughout. Any future AP2
+  artifact has to move to ECDSA. Recorded now so it is not discovered late.</li>
+</ul>
+
+<h3>Considered and not adopted</h3>
+
+<div class="box">
+  <h4>AP2 Python types <span class="tag p">PRIMARY</span></h4>
+  <p>The SDK at <span class="mono">code/sdk/python/ap2/models/mandate.py</span> still defines
+  <span class="mono">IntentMandate</span>, <span class="mono">CartContents</span>,
+  <span class="mono">CartMandate</span>, <span class="mono">PaymentMandateContents</span> and
+  <span class="mono">PaymentMandate</span>. That is v0.1 naming. The documentation describes v0.2.
+  <strong>The code lags the specification.</strong></p>
+  <p>There is also no PyPI release. Installation is from a git branch. A dependency on a moving
+  branch of another organisation's repository would make the results unreproducible. This project
+  holds itself to reproducibility. Decision: <strong>vendor the schemas and not the classes</strong>.
+  Treat AP2 as related work.</p>
+</div>
+
+<p>Also considered and rejected. W3C Verifiable Credentials 2.0 with JSON-LD was rejected because
+AP2 v0.2 is JWT claims shaped. It uses <span class="mono">vct</span> and
+<span class="mono">cnf</span>. So SD-JWT style artifacts are the closer fit and they avoid a heavy
+canonicalisation dependency. RFC 9396 Rich Authorization Requests informed the authority model but
+was not adopted wholesale. RFC 8785 JCS was not adopted. The project
+<span class="mono">canonical()</span> function is close to JCS but it is not JCS. Number formatting
+and UTF-8 handling differ. State that deviation in the thesis.</p>
+
+<hr>
+
+<h2 id="sim"><span class="num">05</span>Methodology: the simulation</h2>
+
+<p>The artifact is a simulator with UPI shaped rails. It has a double entry ledger where money moves
+only through balanced postings. It has a two leg payment with a suspense account in between. It has
+a transaction state machine that refuses illegal transitions. It has injectable faults and a
+reconciliation sweep. Simulator specific response codes carry a <span class="mono">SIM-</span>
+prefix so nobody mistakes them for switch responses.</p>
+
+<h3>What each experiment does</h3>
+
+<div class="tw">
+<table>
+<thead><tr><th>Experiment</th><th>Method</th><th>Reads</th></tr></thead>
+<tbody>
+<tr><td>Rail expressiveness</td><td>Put one authority to each of three rails. Record which of the user instructions each rail would have to discard.</td><td class="mono">authority.py</td></tr>
+<tr><td>Enforcement point</td><td>Model which of seven parties holds which of four documents. A check needs two specific documents in one pair of hands, held by a party without a stake.</td><td class="mono">enforcement.py</td></tr>
+<tr><td>The order gate</td><td>Same mandate, same policy, same payment. Gate off, then gate on. One flag is the only difference.</td><td class="mono">consent.py, policy.py</td></tr>
+<tr><td>Signing arrangement</td><td>Run a self consistent inflated order past agent signed, merchant signed and both signed configurations.</td><td class="mono">consent.py</td></tr>
+<tr><td>Per agent revocation</td><td>Two agents on one device. Revoke one. Verify the other still transacts.</td><td class="mono">registration.py</td></tr>
+<tr><td>Rails and recovery</td><td>Inject each of seven faults. Confirm the ledger still nets to zero and stuck money resolves.</td><td class="mono">rails.py, recon.py</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>The bench</h3>
+
+<p><span class="mono">src/bench.py</span> serves a five panel interface at
+<span class="mono">localhost:8010</span>. The panels run in the order the argument runs. Every
+figure on the page comes from the same functions the tests call. If a panel reports a payment
+refused then <span class="mono">policy.evaluate</span> refused it. It is stdlib only. The page
+loads no fonts, scripts or styles from any network. It runs offline.</p>
+
+<div class="fig">
+  <div class="contain">
+    <span class="brk">[</span>
+    <div class="track"><div class="seg a" style="left:0;width:78.67%"></div>
+      <div class="seg o" style="left:78.67%;width:21.33%"></div></div>
+    <span class="brk broken">]</span>
+    <div class="spill">OVER</div>
+  </div>
+  <p class="figcap">The central figure on the bench. The authority is a pair of brackets. The
+  payment is a bar inside them. Here the user agreed to &#8377;118. The agent charged &#8377;600.
+  The per payment ceiling is &#8377;150. So the charge fills the authority, overruns the agreed
+  segment, and breaks out past the closing bracket. Containment is the relation the whole thesis
+  turns on. Does the cart fit inside what was authorised.</p>
+</div>
+
+<hr>
+
+<h2 id="results"><span class="num">06</span>Results</h2>
+
+<h3>Result 1. No UPI primitive can record the authority</h3>
+
+<p>One authority. Pay either of two shops, groceries only, up to &#8377;5,000. Put to each rail.</p>
+
+<pre>  <span class="r">CANNOT</span>   upi_reservepay   blocks funds against one named merchant, so an authority
+                            for 2 merchants is not expressible
+                            and it carries no notion of what was bought
+  <span class="r">CANNOT</span>   upi_circle       attaches to a device and not a payee, so &quot;only these two
+                            shops&quot; cannot be recorded. the agent could pay anyone
+  <span class="r">CANNOT</span>   card_token       moves the money onto a credential the agent controls
+                            before the merchant is paid
+
+  <b>No rail can record what the user said.</b></pre>
+
+<p><strong>The control case matters as much as the finding.</strong> A single named merchant with no
+category is what UPI was built for. It rides Reserve Pay perfectly well. So the gap is specific and
+not a general complaint. It is a missing vocabulary and not a missing check.</p>
+
+<p>Creating an authority that a named rail cannot express now raises
+<span class="mono">RailCannotExpress</span>. Before, it would have silently recorded a narrower
+authority than the user set. Recording less than the user asked for and reporting success is worse
+than refusing. The user believes they are protected.</p>
+
+<h3>Result 2. Nobody on UPI can enforce it</h3>
+
+<p>A delegated payment produces four documents. The authority, the cart, the payment request and the
+settlement. Check A asks whether the request still matches the cart. It needs the cart and the
+request. Check B asks whether the cart fits inside the authority. It needs the cart and the
+authority.</p>
+
+<div class="tw">
+<table>
+<thead><tr><th>Party</th><th>Check B</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>agent</td><td class="no">no</td><td>conflicted. it is the party the check exists to constrain</td></tr>
+<tr><td>payer PSP</td><td class="no">no</td><td>blind. never sees the authority. it also runs in the agent environment</td></tr>
+<tr><td>remitter bank</td><td class="warnc">no</td><td>blind. holds the authority and does the debit, but has never seen a cart</td></tr>
+<tr><td>switch at NPCI</td><td class="no">no</td><td>blind. sees neither the authority nor the cart</td></tr>
+<tr><td>beneficiary bank</td><td class="no">no</td><td>blind. sees neither</td></tr>
+<tr><td>merchant</td><td class="no">no</td><td>blind to the authority. it also earns more when the amount is higher</td></tr>
+<tr><td>merchant processor</td><td class="no">n/a</td><td>no such party exists in a UPI payment</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box bad">
+  <h4>Both checks are unenforceable on UPI as it stands</h4>
+  <p>Every party is either <strong>blind</strong> or <strong>conflicted</strong>. The two failure
+  modes are reported separately throughout. <strong>Only blindness is fixable by changing the
+  rail.</strong> Handing the merchant the authority would not make it trustworthy.</p>
+</div>
+
+<div class="box good">
+  <h4>One field changes the answer</h4>
+  <p>Give the remitter bank a cart reference. Both checks become enforceable. They land with the one
+  party that is disinterested and already decides whether to debit. That one field difference is the
+  proposal. It is stated as a diff and not as an argument. It is asserted in
+  <span class="mono">tests/test_authority.py</span>.</p>
+</div>
+
+<h3>Result 3. The limit protects. The signature does not.</h3>
+
+<p>A self consistent inflated order is one whose lines genuinely add to &#8377;600. It was run past
+all three signing arrangements. Reproduced through the bench API.</p>
+
+<pre>  gate OFF, agreed 118, charged 600, ceiling 1000  &rarr; <span class="r">ALLOWED</span>   (UPI today)
+  gate ON,  same payment                           &rarr; <span class="g">REFUSED</span>
+
+  self consistent 600 order signed by agent        &rarr; <span class="r">ALLOWED</span>
+  self consistent 600 order signed by merchant     &rarr; <span class="r">ALLOWED</span>
+  self consistent 600 order signed by both         &rarr; <span class="r">ALLOWED</span>
+  same order, ceiling dropped to 150               &rarr; <span class="g">REFUSED</span>   <b>&larr; the limit, not the signature</b></pre>
+
+<p>A signature proves who wrote a record. It does not prove the record is true. Once the order is
+the only surviving evidence of the agreement there is nothing left to compare it against. Requiring
+both signatures also has a measurable cost. If merchants must sign and none has integrated then
+every payment stops. That includes the honest ones.</p>
+
+<h3>Result 4. The rail can now say who started a debit</h3>
+
+<p>Section II C of the brief notes that the rail carries no field saying who or what started a
+debit. Until this work the simulator reproduced that hole faithfully.
+<span class="mono">Transaction</span> had no agent on it at all. It now does. The value comes from
+an owner issued credential and is not asserted by the agent.</p>
+
+<div class="tw">
+<table>
+<thead><tr><th>Property</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Private keys held by the policy engine</td><td class="yes"><strong>0</strong>. All 8 resolver entries are public keys with no route to a secret.</td></tr>
+<tr><td>Verification with the DID string alone</td><td class="yes">passes. tampering is rejected.</td></tr>
+<tr><td>Outsider issuing a credential for another agent</td><td class="yes">refused. not issued by this owner.</td></tr>
+<tr><td>Two agents on one device, one revoked</td><td class="yes">the other still transacts</td></tr>
+<tr><td>Status list size leak</td><td class="yes">131,072 bits gzip to about 69 characters regardless of count</td></tr>
+<tr><td><span class="mono">did:key</span> against the spec test vector</td><td class="yes">round trips exactly</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Result 5. The books survive every failure</h3>
+
+<p>Each of seven injectable faults was sent through the bench. The ledger is derived again from the
+entries afterwards. It is not read from a cached balance.</p>
+
+<pre>  (none)               &rarr; <span class="g">SETTLED</span>    00    entries=4   healthy=<span class="g">True</span>
+  credit_fail          &rarr; <span class="y">REVERSED</span>   U31   entries=4   healthy=<span class="g">True</span>
+  debit_timeout        &rarr; <span class="y">REVERSED</span>   U31   entries=4   healthy=<span class="g">True</span>   <span class="c">recon: {'reversed': 1}</span>
+  insufficient_funds   &rarr; <span class="r">DECLINED</span>   Z9    entries=0   healthy=<span class="g">True</span>
+  beneficiary_down     &rarr; <span class="y">REVERSED</span>   U28   entries=4   healthy=<span class="g">True</span></pre>
+
+<p>A timed out debit is neither failed nor successful. The switch does not know. It resolves only by
+asking the banks what actually posted. That is what the reconciliation sweep does.</p>
+
+<h3>Result 6. What the card rail costs, measured</h3>
+
+<p>Cards solve the problem UPI cannot express. The agent holds a credential, so the authority does
+not need to name a shop in advance. The cost is custody, and it is three separate things rather
+than one.</p>
+
+<p>The same trade appears if you try to make UPI work this way. Name the agent card as the payee on
+a Reserve Pay block and the block becomes expressible, because there is one payee. What you have
+recorded is no longer an instruction about shops.</p>
+
+<div class="tw">
+<table>
+<thead><tr><th>Cost</th><th>Measured result</th></tr></thead>
+<tbody>
+<tr><td>Merchant scope stops working</td><td class="no">A mandate scoped to Brewhouse funded the card, and the card then paid CloudHost successfully. The same payment made directly was refused with <span class="mono">cloudhost@okaxis is not a permitted payee</span>.</td></tr>
+<tr><td>Headroom burns on the load</td><td class="no">Pulling &#8377;600 for a &#8377;499 purchase consumed &#8377;600 of the user cap whether or not the purchase completed. &#8377;101 stranded on the card.</td></tr>
+<tr><td>Float strands invisibly</td><td class="no">Load succeeds, spend fails, and the money sits on the card. The reconciliation sweep does not find it, because nothing is stuck mid transaction. Only a deliberate sweep returns it.</td></tr>
+<tr><td>Audit chain severed</td><td class="no">Load and spend are separate transactions with separate references. The load record names the card and never the merchant. The link exists only because the application kept it.</td></tr>
+<tr><td>Revocation has three targets</td><td class="warnc">Killing the card token, stopping future loads and returning the float are three actions, not one. The float is the one that gets forgotten. A revoke that half worked is worse than one that failed loudly.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box bad">
+  <h4>The trade, stated plainly</h4>
+  <p>UPI can carry an agent authority today only by making the agent the merchant. That removes
+  merchant scope, burns headroom on the load, strands float and severs the audit chain. It converts
+  a scope problem into a custody problem. It does not remove the problem.</p>
+  <p>In production this arrangement holds customer funds. In India that needs a PPI or PA licence.
+  <span class="tag s">SECONDARY</span> That is a funding question and not a simulation question, but
+  it decides who can deploy the design.</p>
+</div>
+
+<h3>Test coverage</h3>
+
+<div class="tw">
+<table>
+<thead><tr><th>Suite</th><th>Tests</th><th>Covers</th></tr></thead>
+<tbody>
+<tr><td class="mono">test_sim.py</td><td>44</td><td>money, idempotency, mandate, policy, faults, reconciliation. 6 skipped because the anthropic SDK is absent.</td></tr>
+<tr><td class="mono">test_consent.py</td><td>16</td><td>the order gate and the signing experiment</td></tr>
+<tr><td class="mono">test_vcard.py</td><td>9</td><td>what the virtual card hop costs</td></tr>
+<tr><td class="mono">test_registration.py</td><td>41</td><td>did:key, JWS, status list, per agent revocation</td></tr>
+<tr><td class="mono">test_authority.py</td><td>30</td><td>rail expressiveness, enforcement point, category scope, period budget</td></tr>
+<tr><td class="mono">test_metered.py</td><td>26</td><td>rate arithmetic, tariff signing, meter reconciliation, the ceiling</td></tr>
+<tr><td class="mono">test_receipt.py</td><td>25</td><td>the chain, stranded float, tampering, third party verification</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>191</strong></td><td>up from 69 at the start of this work</td></tr>
+</tbody>
+</table>
+</div>
+
+<hr>
+
+<h2 id="limits"><span class="num">07</span>What is not simulated</h2>
+
+<p>Stated plainly rather than left for a reviewer to find.</p>
+
+<div class="box warn">
+  <h4>Hardware attestation is a stub</h4>
+  <p>The attestation claim is shaped as a real Entity Attestation Token. The roles come from the
+  RATS architecture. <strong>The evidence behind it is fabricated.</strong> There is no Intel TDX.
+  There is no AMD SEV-SNP. There is no Secure Enclave quote. This runs on a laptop. A standard
+  format does not make a stub true. So every attestation carries
+  <span class="mono">simulated: true</span> and <span class="mono">dbgstat: "not-disabled"</span>.</p>
+  <p>A real half step exists and it is free. The macOS Secure Enclave holds a non exportable P-256
+  key. That makes key theft demonstrable rather than assumed. It is not remote attestation. A
+  verifier still cannot check what code is using the key. It is also P-256 and not the Ed25519 used
+  elsewhere.</p>
+</div>
+
+<ul>
+  <li><strong>Real UPI.</strong> Reserve Pay and UPI Circle behaviour comes from circular text that
+  has not been read. <span class="tag u">UNVERIFIED</span> NPCI OC 228 and OC 201-B, and every money
+  ceiling derived from them. The code does not depend on the figures being right. It depends on the
+  shape of what each rail can and cannot say. That shape is better attested.</li>
+  <li><strong>Card network scope enforcement.</strong> Mastercard Agentic Tokens validate scope at
+  the network. The check can be modelled. The network cannot.</li>
+  <li><strong>AP2 interoperability.</strong> Artifacts matching the schemas can be produced. No
+  counterparty runs the protocol. So acceptance cannot be shown.</li>
+  <li><strong>Dispute economics.</strong> Who absorbs a bad agent payment is a liability question
+  with no public data. The simulator can show what evidence exists at the moment of dispute. It
+  cannot say who pays.</li>
+  <li><strong>Prompt injection.</strong> No bound can be placed on how susceptible a model is.</li>
+  <li><strong>P3P prior art.</strong> <span class="tag c">CONTESTED</span> Pine Labs P3P runs
+  agentic payments on UPI Reserve Pay with an identity layer called Grantex. Whether it binds a
+  payment to an approved order is still unchecked. The AP2 finding does not replace that check. It
+  remains the highest priority open item.</li>
+</ul>
+
+<hr>
+
+<h2 id="next"><span class="num">08</span>What remains</h2>
+
+<ol>
+  <li><strong>The cross rail receipt.</strong> One signed record binding the registration, the
+  authority, the order and both settlement legs. It verifies the amounts agree across all four. It
+  checks every signature from the public key resolver. This closes a gap the project has already
+  measured. <span class="mono">tests/test_vcard.py</span> asserts the audit chain is severed because
+  the load names the card and never the merchant.</li>
+  <li><strong>The dispute path.</strong> The three outcome states exist. What is missing is what
+  happens next. Assemble the receipt. Compare the revocation timestamp against settlement. State who
+  is answerable. A payment at 14:06 against a revoke at 14:05.</li>
+  <li><strong>Exposure through the REST layer.</strong> Agents and receipts alongside the existing
+  23 routes in <span class="mono">api.py</span>.</li>
+  <li><strong>Prompt injection demonstration.</strong> Not one of the six components. It is cheap
+  and reproducible. Feed the real LLM planner a poisoned invoice. Let it emit a corrupted intent.
+  Show the deterministic gate refuses it anyway. It demonstrates the claim the architecture rests
+  on. <strong>The model is not in the approval path.</strong></li>
+  <li><strong>Read the circulars.</strong> Every UPI figure stays unverified until OC 228 and
+  OC 201-B are read section by section.</li>
+</ol>
+
+<div class="foot">
+  <p>A record of work to 24 August 2026. Corrections C6 and C7 are logged in
+  <span class="mono">docs/research/corpus-corrections-2026-08.md</span>. The code is in
+  <span class="mono">src/</span>. The test bench runs with
+  <span class="mono">.venv/bin/python src/bench.py</span>.</p>
+  <p>AP2 is maintained by Google, which has a commercial interest in it. The W3C and IETF documents
+  cited do not.</p>
+</div>
+
+</div>
+</body>
+</html>

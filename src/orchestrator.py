@@ -30,9 +30,25 @@ from models import (
     TxnState,
     utcnow,
 )
+from authority import Rail, check_expressible
 from policy import PolicyEngine, Verdict
 from rails import Switch
 from store import Store
+
+
+class RailCannotExpress(ValueError):
+    """The chosen rail cannot record what the user actually authorised.
+
+    Raised at creation rather than swallowed, because the alternative is an
+    authority that looks narrower than it is.
+    """
+
+    def __init__(self, rail: str, losses: list[str]):
+        self.rail = rail
+        self.losses = losses
+        super().__init__(
+            f"{rail} cannot express this authority: " + "; ".join(losses)
+        )
 
 
 @dataclass
@@ -76,10 +92,29 @@ class Orchestrator:
         valid_from,
         valid_until,
         purpose: str,
+        agent_id: str | None = None,
+        categories: list[str] | None = None,
+        rail: str | None = None,
+        period_cap: Money | None = None,
+        period_days: int | None = None,
     ) -> Mandate:
         payer_vpa = validate_vpa(payer_vpa)
         if self.store.get_account_by_vpa(payer_vpa) is None:
             raise ValueError(f"no account for payer {payer_vpa}")
+
+        categories = categories or []
+
+        # If a rail is named, it must be able to say what the user said. Recording
+        # an authority the rail cannot express means quietly dropping part of the
+        # instruction and telling the user it was set up -- which is worse than
+        # refusing, because they believe they are protected.
+        if rail is not None:
+            verdict = check_expressible(
+                Rail(rail), allowed_payees, categories, total_cap
+            )
+            if not verdict.expressible:
+                raise RailCannotExpress(rail, verdict.losses)
+
         mandate = Mandate(
             umn=new_umn(),
             payer_vpa=payer_vpa,
@@ -91,6 +126,12 @@ class Orchestrator:
             valid_until=valid_until,
             status=MandateStatus.ACTIVE,
             purpose=purpose,
+            agent_id=agent_id,
+            categories=categories,
+            rail=rail,
+            period_cap=period_cap,
+            period_days=period_days,
+            period_started_at=utcnow() if period_cap is not None else None,
         )
         self.store.save_mandate(mandate)
         self.store.record_event("mandate.created", mandate.to_dict())
@@ -113,8 +154,15 @@ class Orchestrator:
         umn: str | None = None,
         note: str = "",
         order=None,
+        agent_id: str | None = None,
+        quantity: str | None = None,
     ) -> PaymentResult:
-        """Gate an intent, then run it through the rails."""
+        """Gate an intent, then run it through the rails.
+
+        `agent_id` rides on the transaction. It is the field Section II-C of the
+        brief says UPI does not carry -- without it, a debit is just a debit, and
+        nothing afterwards can say which agent caused it.
+        """
         trace: list[dict] = []
         payer_vpa = validate_vpa(payer_vpa)
 
@@ -133,7 +181,7 @@ class Orchestrator:
 
         # -- gate ----------------------------------------------------------
         mandate = self.store.get_mandate(umn) if umn else None
-        verdict = self.policy.evaluate(intent, payer_vpa, mandate, order)
+        verdict = self.policy.evaluate(intent, payer_vpa, mandate, order, quantity)
         trace.append({
             "step": "policy",
             "detail": "allowed" if verdict.allowed else "; ".join(verdict.reasons),
@@ -159,6 +207,7 @@ class Orchestrator:
             response_code=None,
             umn=umn,
             note=note or intent.reason,
+            agent_id=agent_id,
         )
         self.store.create_txn(txn)
         self.store.record_event("payment.created", txn.to_dict(), txn.txn_id)
@@ -258,6 +307,8 @@ class Orchestrator:
         umn: str | None,
         idempotency_key: str | None = None,
         order=None,
+        agent_id: str | None = None,
+        quantity: str | None = None,
     ) -> PaymentResult:
         """Standing instruction + event -> intent -> gate -> rails."""
         from agent import AgentContext
@@ -279,4 +330,5 @@ class Orchestrator:
         return self.execute(
             intent=intent, payer_vpa=payer_vpa, idempotency_key=key,
             umn=umn, note=f"agent({planner.name}): {intent.reason}", order=order,
+            agent_id=agent_id,
         )

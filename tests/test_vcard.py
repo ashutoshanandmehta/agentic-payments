@@ -195,5 +195,117 @@ class TestFloatBehaviour(CardCase):
                          "headroom must return with the money")
 
 
+class TestTwoFundingRails(unittest.TestCase):
+    """One spend instrument, two ways to fund it.
+
+    The agent always pays from its virtual card. That does not change. What the
+    owner chooses is where the money comes from, their bank over UPI or their own
+    card. Both end at the same credential and the same merchant.
+    """
+
+    def setUp(self):
+        self.db = tempfile.mktemp(suffix=".db")
+        self.sim = simwiring.build(db_path=self.db, fresh=True)
+        simwiring.seed(self.sim)
+        self.card = vcard.issue(self.sim, "fridge-restock",
+                                simwiring.USER_VPA, umn="")
+
+    def tearDown(self):
+        self.sim.close()
+        if os.path.exists(self.db):
+            os.remove(self.db)
+
+    def authorise(self, payer_vpa):
+        """A mandate letting the named account fund this agent card."""
+        now = utcnow()
+        m = self.sim.orchestrator.create_mandate(
+            payer_vpa=payer_vpa, allowed_payees=[self.card.vpa],
+            max_amount_per_txn=Money.rupees("2000"),
+            total_cap=Money.rupees("10000"),
+            valid_from=now - timedelta(minutes=1),
+            valid_until=now + timedelta(days=90),
+            purpose="agent funding", agent_id=self.sim.agent_name,
+        )
+        self.card.umn = m.umn
+        return m
+
+    def balance(self, vpa):
+        return self.sim.store.get_account_by_vpa(vpa).balance
+
+    # -- funding over UPI --------------------------------------------------
+
+    def test_upi_funding_debits_the_bank_account(self):
+        self.authorise(simwiring.USER_VPA)
+        before = self.balance(simwiring.USER_VPA)
+        card_before = self.balance(simwiring.USER_CARD_VPA)
+
+        result = vcard.load(self.sim, self.card, Money.rupees("403"), "L1")
+
+        self.assertTrue(result.ok, result.verdict.reasons)
+        self.assertEqual(self.balance(simwiring.USER_VPA),
+                         before - Money.rupees("403"))
+        self.assertEqual(self.balance(simwiring.USER_CARD_VPA), card_before,
+                         "funding over UPI must not touch the card")
+
+    def test_upi_is_the_default_source(self):
+        self.authorise(simwiring.USER_VPA)
+        result = vcard.load(self.sim, self.card, Money.rupees("403"), "L1")
+        self.assertEqual(self.card.funding[result.txn.txn_id],
+                         vcard.FundingSource.UPI)
+
+    # -- funding from the owner card ---------------------------------------
+
+    def test_card_funding_debits_the_card(self):
+        self.authorise(simwiring.USER_CARD_VPA)
+        before = self.balance(simwiring.USER_CARD_VPA)
+        bank_before = self.balance(simwiring.USER_VPA)
+
+        result = vcard.load_from_card(self.sim, self.card, Money.rupees("403"),
+                                      "L1", from_vpa=simwiring.USER_CARD_VPA)
+
+        self.assertTrue(result.ok, result.verdict.reasons)
+        self.assertEqual(self.balance(simwiring.USER_CARD_VPA),
+                         before - Money.rupees("403"))
+        self.assertEqual(self.balance(simwiring.USER_VPA), bank_before,
+                         "funding from the card must not touch the bank account")
+
+    def test_the_source_is_recorded(self):
+        self.authorise(simwiring.USER_CARD_VPA)
+        result = vcard.load_from_card(self.sim, self.card, Money.rupees("403"),
+                                      "L1", from_vpa=simwiring.USER_CARD_VPA)
+        self.assertEqual(self.card.funding[result.txn.txn_id],
+                         vcard.FundingSource.CARD)
+
+    # -- either way, the agent spends the same -----------------------------
+
+    def test_both_rails_reach_the_merchant_through_the_same_card(self):
+        for payer, amount, funder, key in (
+            (simwiring.USER_VPA, "403",
+             lambda: vcard.load(self.sim, self.card, Money.rupees("403"), "L-upi"),
+             "S-upi"),
+            (simwiring.USER_CARD_VPA, "511",
+             lambda: vcard.load_from_card(self.sim, self.card, Money.rupees("511"),
+                                          "L-card", from_vpa=simwiring.USER_CARD_VPA),
+             "S-card"),
+        ):
+            self.authorise(payer)
+            load = funder()
+            self.assertTrue(load.ok, load.verdict.reasons)
+
+            spend = vcard.spend(self.sim, self.card, simwiring.MERCHANT_VPA,
+                                Money.rupees(amount), key,
+                                load_txn_id=load.txn.txn_id)
+            self.assertTrue(spend.ok, f"{payer}: {spend.verdict.reasons}")
+            self.assertEqual(spend.txn.payer_vpa, self.card.vpa,
+                             "the agent always spends from its own card")
+
+    def test_an_unauthorised_source_cannot_fund_the_agent(self):
+        """A mandate over the bank account does not license the card."""
+        self.authorise(simwiring.USER_VPA)
+        result = vcard.load_from_card(self.sim, self.card, Money.rupees("403"),
+                                      "L1", from_vpa=simwiring.USER_CARD_VPA)
+        self.assertFalse(result.ok)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -71,6 +71,8 @@ class VirtualCard:
     umn: str
     #: load_txn_id -> the spends drawn against it. the link the rails do not keep.
     chain: dict[str, list[str]] = field(default_factory=dict)
+    #: load_txn_id -> which rail funded it. one card, either funding source.
+    funding: dict[str, str] = field(default_factory=dict)
     #: set by revocation.revoke(). a killed token spends nothing, even if funded.
     revoked: bool = False
 
@@ -82,6 +84,7 @@ class VirtualCard:
             "owner_vpa": self.owner_vpa,
             "umn": self.umn,
             "chain": self.chain,
+            "funding": self.funding,
             "revoked": self.revoked,
         }
 
@@ -119,30 +122,71 @@ def balance(sim, card: VirtualCard) -> Money:
 # The two legs
 # --------------------------------------------------------------------------
 
-def load(sim, card: VirtualCard, amount: Money, idempotency_key: str,
-         order: Order | None = None, confidence: float = 0.95) -> PaymentResult:
-    """
-    Leg one: move the user's money onto the card.
+class FundingSource:
+    """Which rail the owner funds the agent from.
 
-    Fully gated. The user's mandate governs this, exactly as it would a direct
-    payment -- note that the payee it sees is the card, never the shop.
+    The agent always spends from its virtual card. That is the one instrument and
+    it does not change. What changes is where the money comes from, and the owner
+    picks that.
+
+    The ledger mechanics are the same either way. A debit from an account the owner
+    holds, a credit to the card. What actually differs is the authority primitive
+    behind it and the dispute regime around it. On UPI the authority is a block and
+    there is no chargeback apparatus. On cards it is a scoped token the network
+    validates, with defined liability. `authority.py` is where that difference is
+    modelled.
     """
+
+    UPI = "upi"
+    CARD = "card"
+
+
+def load(sim, card: VirtualCard, amount: Money, idempotency_key: str,
+         order: Order | None = None, confidence: float = 0.95,
+         source: str = FundingSource.UPI,
+         from_vpa: str | None = None) -> PaymentResult:
+    """
+    Leg one: move the owner's money onto the card.
+
+    Fully gated. The owner's mandate governs this exactly as it would a direct
+    payment. Note that the payee it sees is the card and never the shop, which is
+    the whole reason merchant scope stops working on this leg.
+
+    `source` records which rail funded it. `from_vpa` names the account, and
+    defaults to the owner's UPI address so existing callers are unaffected.
+    """
+    payer = from_vpa or card.owner_vpa
+
     intent = PaymentIntent(
         should_pay=True, payee_vpa=card.vpa, amount=amount,
-        reason=f"load virtual card for {card.agent_id}",
+        reason=f"load virtual card for {card.agent_id} from {source}",
         confidence=confidence, source="vcard",
     )
     result = sim.orchestrator.execute(
-        intent=intent, payer_vpa=card.owner_vpa, idempotency_key=idempotency_key,
-        umn=card.umn, note=f"vcard load: {card.card_id}", order=order,
+        intent=intent, payer_vpa=payer, idempotency_key=idempotency_key,
+        umn=card.umn, note=f"vcard load via {source}: {card.card_id}", order=order,
+        agent_id=card.agent_id,
     )
     if result.ok:
         card.chain.setdefault(result.txn.txn_id, [])
+        card.funding[result.txn.txn_id] = source
         sim.store.record_event("vcard.load", {
             "card_id": card.card_id, "txn_id": result.txn.txn_id,
-            "amount_paise": amount.paise,
+            "amount_paise": amount.paise, "source": source, "from": payer,
         })
     return result
+
+
+def load_from_card(sim, card: VirtualCard, amount: Money, idempotency_key: str,
+                   from_vpa: str, order: Order | None = None) -> PaymentResult:
+    """Fund the agent from the owner's card rather than their bank account.
+
+    Same destination, different rail. The owner chooses this when they want the
+    card network's scope enforcement and dispute process, and accepts the fee that
+    comes with it.
+    """
+    return load(sim, card, amount, idempotency_key, order=order,
+                source=FundingSource.CARD, from_vpa=from_vpa)
 
 
 def spend(sim, card: VirtualCard, payee_vpa: str, amount: Money,
@@ -175,8 +219,8 @@ def spend(sim, card: VirtualCard, payee_vpa: str, amount: Money,
             max_txns_per_hour=sim.policy.config.max_txns_per_hour,
             min_confidence=sim.policy.config.min_confidence,
         ),
-        agent_key=sim.agent_key,
-        merchant_keys=sim.merchant_keys,
+        resolver=sim.resolver,
+        agent_name=sim.agent_name,
         order_signer=sim.policy.order_signer,
     )
     card_rail = Orchestrator(sim.store, sim.switch, card_policy)
@@ -188,6 +232,7 @@ def spend(sim, card: VirtualCard, payee_vpa: str, amount: Money,
     result = card_rail.execute(
         intent=intent, payer_vpa=card.vpa, idempotency_key=idempotency_key,
         umn=None, note=f"vcard spend: {card.card_id}", order=order,
+        agent_id=card.agent_id,
     )
     if result.ok and load_txn_id:
         card.chain.setdefault(load_txn_id, []).append(result.txn.txn_id)
@@ -224,7 +269,7 @@ def sweep(sim, card: VirtualCard, idempotency_key: str) -> PaymentResult | None:
 
     card_policy = PolicyEngine(
         sim.store, PolicyConfig(require_mandate=False, require_order=False),
-        agent_key=sim.agent_key, merchant_keys=sim.merchant_keys,
+        resolver=sim.resolver, agent_name=sim.agent_name,
     )
     card_rail = Orchestrator(sim.store, sim.switch, card_policy)
 
@@ -235,6 +280,7 @@ def sweep(sim, card: VirtualCard, idempotency_key: str) -> PaymentResult | None:
     return card_rail.execute(
         intent=intent, payer_vpa=card.vpa, idempotency_key=idempotency_key,
         umn=None, note=f"vcard sweep: {card.card_id}",
+        agent_id=card.agent_id,
     )
 
 
