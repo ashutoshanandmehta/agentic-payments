@@ -4,11 +4,10 @@ MS research. IIT Kanpur. Supervisor: Prof. Vimal Kumar.
 
 **The question.** When an AI agent pays for something, is it allowed to, and can you prove it afterwards?
 
-The work starts when the agent tries to pay. The cart is already full. Something else chose the products and picked the shop. Product search and price comparison happen before that boundary and are out of scope.
-
+The work starts when the agent tries to pay. 
 ## What this is
 
-A control layer that sits above UPI and card rails, with a simulator underneath it so every claim can be run.
+A control layer that sits above UPI and card rails.
 
 The agent proposes a payment. A deterministic gate decides. The rail settles. The agent never moves money itself.
 
