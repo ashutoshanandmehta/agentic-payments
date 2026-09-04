@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Trusted delegated payments for AI agents over UPI and cards.">
+  <title>Agentic Payments</title>
+  <style>
+    :root { --ink:#122020; --muted:#52605f; --line:#d8e1df; --teal:#0b6659; --wash:#e7f1ef; --paper:#f6f8f7; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:17px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { max-width:72rem; margin:auto; padding:clamp(2rem,7vw,6rem) 1.5rem 4rem; }
+    .eyebrow { color:var(--teal); font-size:.73rem; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+    h1 { max-width:13ch; margin:.6rem 0 1rem; font-size:clamp(2.5rem,7vw,5.4rem); line-height:.98; letter-spacing:-.055em; }
+    .lede { max-width:42rem; color:var(--muted); font-size:clamp(1.1rem,2vw,1.35rem); }
+    .note { max-width:52rem; margin:2rem 0 3rem; padding:1rem 1.2rem; border-left:4px solid var(--teal); background:var(--wash); }
+    h2 { margin:0 0 1rem; font-size:1.3rem; letter-spacing:-.02em; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(15rem,1fr)); gap:1rem; }
+    a.card { display:block; min-height:11rem; padding:1.25rem; color:inherit; text-decoration:none; background:#fff; border:1px solid var(--line); border-radius:.6rem; transition:transform .15s, border-color .15s; }
+    a.card:hover { transform:translateY(-3px); border-color:var(--teal); }
+    .tag { color:var(--teal); font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+    h3 { margin:.5rem 0; font-size:1.12rem; letter-spacing:-.02em; }
+    p { margin:0; color:var(--muted); }
+    footer { margin-top:4rem; padding-top:1.4rem; border-top:1px solid var(--line); color:var(--muted); font-size:.9rem; }
+    footer a { color:var(--teal); }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">Research prototype · IIT Kanpur</div>
+    <h1>Trusted delegated payments for AI agents.</h1>
+    <p class="lede">A control layer above UPI and card rails: the agent proposes a payment, a deterministic gate decides, and signed receipts preserve the evidence.</p>
+    <p class="note">This is a simulation, not a live payment service. The work asks whether an agent was permitted to pay—and whether that permission can be proven afterwards.</p>
+    <h2>Explore the work</h2>
+    <section class="grid">
+      <a class="card" href="report.html"><div class="tag">Report</div><h3>Delegated payments</h3><p>The central argument, payment shapes, controls, and findings.</p></a>
+      <a class="card" href="pitch-deck.html"><div class="tag">Presentation</div><h3>Payments for machines that buy</h3><p>A concise, visual walkthrough of the problem and approach.</p></a>
+      <a class="card" href="methodology-and-results.html"><div class="tag">Research</div><h3>Methodology and results</h3><p>Evidence, tests, assumptions, and open questions.</p></a>
+      <a class="card" href="workflow.html"><div class="tag">Workflow</div><h3>Intent to settlement</h3><p>How authorization, enforcement, settlement, and receipts connect.</p></a>
+      <a class="card" href="agent-payment-flow.html"><div class="tag">Flow</div><h3>The two-rail payment</h3><p>Compare the card-token and UPI funding shapes.</p></a>
+      <a class="card" href="protocols.html"><div class="tag">Protocols</div><h3>Three ways to pay over HTTP</h3><p>The protocols and interfaces behind a delegated purchase.</p></a>
+    </section>
+    <footer>Source code and offline simulation: <a href="https://github.com/ashutoshanandmehta/agentic-payments">github.com/ashutoshanandmehta/agentic-payments</a></footer>
+  </main>
+</body>
+</html>
